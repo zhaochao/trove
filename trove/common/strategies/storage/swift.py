@@ -30,7 +30,7 @@ CONF = cfg.CONF
 
 CHUNK_SIZE = CONF.backup_chunk_size
 MAX_FILE_SIZE = CONF.backup_segment_max_size
-BACKUP_CONTAINER = CONF.backup_swift_container
+BACKUP_CONTAINER_PREFIX = CONF.backup_swift_container_prefix
 
 
 class DownloadError(Exception):
@@ -44,10 +44,11 @@ class SwiftDownloadIntegrityError(Exception):
 class StreamReader(object):
     """Wrap the stream from the backup process and chunk it into segements."""
 
-    def __init__(self, stream, filename, max_file_size=MAX_FILE_SIZE):
+    def __init__(self, stream, filename, container,
+                 max_file_size=MAX_FILE_SIZE):
         self.stream = stream
         self.filename = filename
-        self.container = BACKUP_CONTAINER
+        self.container = container
         self.max_file_size = max_file_size
         self.segment_length = 0
         self.process = None
@@ -106,31 +107,36 @@ class SwiftStorage(base.Storage):
     def __init__(self, *args, **kwargs):
         super(SwiftStorage, self).__init__(*args, **kwargs)
         self.connection = create_swift_client(self.context)
+        self.backup_container = '%(prefix)s_%(tenant)s' % {
+            'prefix': BACKUP_CONTAINER_PREFIX,
+            'tenant': self.context.tenant
+        }
 
     def save(self, filename, stream, metadata=None):
         """Persist information from the stream to swift.
 
-        The file is saved to the location <BACKUP_CONTAINER>/<filename>.
+        The file is saved to the location
+        <BACKUP_CONTAINER>_<tenant_id>/<filename>.
         The filename is defined on the backup runner manifest property
         which is typically in the format '<backup_id>.<ext>.gz'
         """
 
         # Create the container if it doesn't already exist
-        self.connection.put_container(BACKUP_CONTAINER)
+        self.connection.put_container(self.backup_container)
 
         # Swift Checksum is the checksum of the concatenated segment checksums
         swift_checksum = hashlib.md5()
 
         # Wrap the output of the backup process to segment it for swift
-        stream_reader = StreamReader(stream, filename)
+        stream_reader = StreamReader(stream, filename, self.backup_container)
 
         url = self.connection.url
         # Full location where the backup manifest is stored
-        location = "%s/%s/%s" % (url, BACKUP_CONTAINER, filename)
+        location = "%s/%s/%s" % (url, self.backup_container, filename)
 
         # Read from the stream and write to the container in swift
         while not stream_reader.end_of_file:
-            etag = self.connection.put_object(BACKUP_CONTAINER,
+            etag = self.connection.put_object(self.backup_container,
                                               stream_reader.segment,
                                               stream_reader)
 
@@ -154,12 +160,12 @@ class SwiftStorage(base.Storage):
         headers = {'X-Object-Manifest': stream_reader.prefix}
         # The etag returned from the manifest PUT is the checksum of the
         # manifest object (which is empty); this is not the checksum we want
-        self.connection.put_object(BACKUP_CONTAINER,
+        self.connection.put_object(self.backup_container,
                                    filename,
                                    contents='',
                                    headers=headers)
 
-        resp = self.connection.head_object(BACKUP_CONTAINER, filename)
+        resp = self.connection.head_object(self.backup_container, filename)
         # swift returns etag in double quotes
         # e.g. '"dc3b0827f276d8d78312992cc60c2c3f"'
         etag = resp['etag'].strip('"')
