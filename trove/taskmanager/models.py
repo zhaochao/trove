@@ -1464,10 +1464,10 @@ class BackupTasks(object):
         return container, prefix
 
     @classmethod
-    def delete_files_from_swift(cls, context, filename):
+    def delete_files_from_swift(cls, context, filename, tenant):
         container = '%(prefix)s_%(tenant)s' % {
             'prefix': CONF.backup_swift_container_prefix,
-            'tenant': context.tenant
+            'tenant': tenant
         }
         client = remote.create_swift_client(context)
         obj = client.head_object(container, filename)
@@ -1498,8 +1498,9 @@ class BackupTasks(object):
         backup = bkup_models.Backup.get_by_id(context, backup_id)
         try:
             filename = backup.filename
-            if filename:
-                BackupTasks.delete_files_from_swift(context, filename)
+            tenant = backup.tenant_id
+            if filename and tenant:
+                BackupTasks.delete_files_from_swift(context, filename, tenant)
         except ValueError:
             backup.delete()
         except ClientException as e:
