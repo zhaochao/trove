@@ -501,6 +501,11 @@ class Manager(periodic_task.PeriodicTasks):
                     raise exception.BadRequest("Cannot %s a SYSTEM log ('%s')."
                                                % (action_text, log_name))
             if gl_cache[log_name].type == guest_log.LogType.USER:
+                if (discard or publish) and context.tenant != CONF.get(
+                        'tenant_id'):
+                    raise exception.BadRequest(
+                        "Cannot %s %s log as use different tenant_id." %
+                        ('discard' if discard else 'publish', log_name))
                 requires_change = (
                     (gl_cache[log_name].enabled and disable) or
                     (not gl_cache[log_name].enabled and enable))

@@ -28,8 +28,13 @@ from trove.common.i18n import _LE
 
 CONF = cfg.CONF
 # The guest_id opt definition must match the one in common/cfg.py
-CONF.register_opts([openstack_cfg.StrOpt('guest_id', default=None,
-                                         help="ID of the Guest Instance.")])
+guest_opts = [
+    openstack_cfg.StrOpt('guest_id', default=None,
+                         help="ID of the Guest Instance."),
+    openstack_cfg.StrOpt('tenant_id', default=None,
+                         help="Tenant ID of the Guest Instance.")
+]
+CONF.register_opts(guest_opts)
 
 
 def main():

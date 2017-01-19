@@ -165,7 +165,10 @@ class GuestLog(object):
 
     def get_container_name(self, force=False):
         if not self._container_name or force:
-            container_name = CONF.guest_log_container_name
+            container_name = '%(prefix)s_%(tenant)s' % {
+                'prefix': CONF.guest_log_container_name_prefix,
+                'tenant': self.context.tenant
+            }
             try:
                 self.swift_client.get_container(container_name, prefix='dummy')
             except ClientException as ex:
