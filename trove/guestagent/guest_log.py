@@ -195,9 +195,7 @@ class GuestLog(object):
             if self._published_size:
                 container_name = self.get_container_name()
                 prefix = self._object_prefix()
-            pending = self._size - self._published_size
-            if self.status == LogStatus.Rotated:
-                pending = self._size
+            pending = self._size
             return {
                 'name': self._name,
                 'type': self._type.name,
@@ -255,14 +253,12 @@ class GuestLog(object):
             self._size = logstat.st_size
             self._update_log_header_digest(self._file)
 
-            if self._log_rotated():
-                self.status = LogStatus.Rotated
             # See if we have stuff to publish
-            elif logstat.st_size > self._published_size:
+            if logstat.st_size > 0:
                 self._set_status(self._published_size,
                                  LogStatus.Partial, LogStatus.Ready)
             # We've published everything so far
-            elif logstat.st_size == self._published_size:
+            elif logstat.st_size == 0:
                 self._set_status(self._published_size,
                                  LogStatus.Published, LogStatus.Enabled)
             # We've already handled this case (log rotated) so what gives?
@@ -296,14 +292,14 @@ class GuestLog(object):
     def _get_headers(self):
         return {'X-Delete-After': str(CONF.guest_log_expiry)}
 
+    def _clear_local_log(self):
+        operating_system.write_file(self._file, '', as_root=True)
+
     def publish_log(self):
         if self.exposed:
-            if self._log_rotated():
-                LOG.debug("Log file rotation detected for '%s' - "
-                          "discarding old log" % self._name)
-                self._delete_log_components()
             if os.path.isfile(self._file):
                 self._publish_to_container(self._file)
+                self._clear_local_log()
             else:
                 raise RuntimeError(_(
                     "Cannot publish log file '%s' as it does not exist.") %
@@ -361,8 +357,6 @@ class GuestLog(object):
         self._put_meta_details()
         object_headers = self._get_headers()
         with open(log_filename, 'r') as log:
-            LOG.debug("seeking to %s", self._published_size)
-            log.seek(self._published_size)
             for chunk in _read_chunk(log):
                 for log_line in chunk.splitlines():
                     if len(log_component) + len(log_line) > chunk_size:
