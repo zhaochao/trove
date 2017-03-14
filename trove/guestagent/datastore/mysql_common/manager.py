@@ -226,6 +226,8 @@ class MySqlManager(manager.Manager):
             # will be changed based on the config template
             # (see MySqlApp.secure()) and restart.
             app.set_data_dir(mount_point + '/data')
+            prepare_conf = app.configuration_manager.parse_configuration()
+            app.configuration_manager.save_configuration(prepare_conf)
             app.start_mysql()
         if backup_info:
             self._perform_restore(backup_info, context,
