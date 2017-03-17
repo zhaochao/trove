@@ -1096,7 +1096,7 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                 name = 'trove-%s' % self.id
                 heatclient.stacks.delete(name)
             else:
-                self.server.delete()
+                self.server.force_delete()
         except Exception as ex:
             LOG.exception(_("Error during delete compute server %s")
                           % self.server.id)
