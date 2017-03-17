@@ -326,6 +326,8 @@ class SchemaController(wsgi.Controller):
             try:
                 schema = guest_models.ValidatedMySQLDatabase()
                 schema.name = id
+                if not models.Schemas.find(context, instance_id, id):
+                    raise exception.DatabaseNotFound(uuid=id)
                 models.Schema.delete(context, instance_id, schema.serialize())
             except (ValueError, AttributeError) as e:
                 raise exception.BadRequest(msg=str(e))
