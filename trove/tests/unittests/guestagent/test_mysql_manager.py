@@ -259,6 +259,10 @@ class GuestAgentManagerTest(DatastoreManagerTest):
         self.addCleanup(set_data_dir_patcher.stop)
         set_data_dir_patcher.start()
         dbaas.MySqlApp.stop_db = MagicMock(return_value=None)
+        dbaas.MySqlApp.configuration_manager.parse_configuration = MagicMock(
+                return_value=None)
+        dbaas.MySqlApp.configuration_manager.save_configuration = MagicMock(
+                return_value=None)
         dbaas.MySqlApp.start_mysql = MagicMock(return_value=None)
         dbaas.MySqlApp.update_overrides = MagicMock(return_value=None)
         dbaas.MySqlApp.install_if_needed = MagicMock(return_value=None)
