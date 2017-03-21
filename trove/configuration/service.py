@@ -261,9 +261,10 @@ class ConfigurationsController(wsgi.Controller):
 
             # type checking
             value_type = rule.data_type
+            standard_type = ConfigurationsController._find_type(value_type)
 
-            if not isinstance(v, ConfigurationsController._find_type(
-                    value_type)):
+            if not isinstance(v, standard_type) or isinstance(
+                    v, bool) and standard_type == six.integer_types:
                 output = {"key": k, "type": value_type}
                 msg = _("The value provided for the configuration "
                         "parameter %(key)s is not of type %(type)s.") % output
