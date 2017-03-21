@@ -77,9 +77,12 @@ class Root(object):
         return root_user
 
     @classmethod
-    def delete(cls, context, instance_id):
+    def delete(cls, context, instance_id, cluster_instances_list=None):
         load_and_verify(context, instance_id)
         create_guest_client(context, instance_id).disable_root()
+
+        if cluster_instances_list is None:
+            RootHistory.delete(context, instance_id)
 
 
 class ClusterRoot(Root):
@@ -126,3 +129,12 @@ class RootHistory(object):
             return history
         history = RootHistory(instance_id, user)
         return history.save()
+
+    @classmethod
+    def delete(cls, context, instance_id):
+        history = cls.load(context, instance_id)
+        if history is not None:
+            LOG.debug("Deleting %(name)s: %(dict)s" %
+                      {'name': history.__class__.__name__,
+                       'dict': history.__dict__})
+            return get_db_api().delete(history)
