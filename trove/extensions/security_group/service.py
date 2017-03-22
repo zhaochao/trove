@@ -109,7 +109,7 @@ class SecurityGroupRuleController(wsgi.Controller):
                         body['security_group_rule']['cidr'], context)
                     rules.append(rule)
             except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
+                raise exception.BadRequest(message=str(e))
             return rules
 
         tcp_rules = _create_rules(sec_group, tcp_ports, 'tcp')
