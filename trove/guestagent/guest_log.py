@@ -14,6 +14,7 @@
 
 from datetime import datetime
 import enum
+import eventlet
 import hashlib
 import os
 from requests.exceptions import ConnectionError
@@ -106,6 +107,7 @@ class GuestLog(object):
         self._container_name = None
         self._codec = stream_codecs.JsonCodec()
         self._is_publishing = False
+        self.pool = eventlet.GreenPool()
 
         self._set_status(self._type == LogType.USER,
                          LogStatus.Disabled, LogStatus.Enabled)
@@ -275,7 +277,7 @@ class GuestLog(object):
             self._published_size = 0
             self._size = 0
 
-        if not self._size or not self.enabled:
+        if not os.path.isfile(self._file) or not self.enabled:
             user_status = LogStatus.Disabled
             if self.enabled:
                 user_status = LogStatus.Enabled
@@ -302,17 +304,24 @@ class GuestLog(object):
     def _clear_local_log(self):
         operating_system.write_file(self._file, '', as_root=True)
 
+    def _publish_log(self):
+        self._publish_to_container(self._file)
+        self._clear_local_log()
+        self._is_publishing = False
+
     def publish_log(self):
         if self.exposed:
             if os.path.isfile(self._file):
-                self._publish_to_container(self._file)
-                self._clear_local_log()
-                self._is_publishing = False
+                self.pool.spawn_n(self._publish_log)
             else:
                 raise RuntimeError(_(
                     "Cannot publish log file '%s' as it does not exist.") %
                     self._file)
-            return self.show()
+            return {
+                'name': self._name,
+                'type': self._type.name,
+                'metafile': self._metafile_name()
+            }
         else:
             raise exception.UnauthorizedRequest(_(
                 "Not authorized to publish log '%s'.") % self._name)
