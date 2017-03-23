@@ -105,6 +105,7 @@ class GuestLog(object):
         self._file_readable = False
         self._container_name = None
         self._codec = stream_codecs.JsonCodec()
+        self._is_publishing = False
 
         self._set_status(self._type == LogType.USER,
                          LogStatus.Disabled, LogStatus.Enabled)
@@ -210,6 +211,12 @@ class GuestLog(object):
             raise exception.UnauthorizedRequest(_(
                 "Not authorized to show log '%s'.") % self._name)
 
+    def log_publish_status(self):
+        return {
+            'is_publishing': self._is_publishing,
+            'name': self._name
+        }
+
     def _refresh_details(self):
 
         if self._published_size is None:
@@ -300,6 +307,7 @@ class GuestLog(object):
             if os.path.isfile(self._file):
                 self._publish_to_container(self._file)
                 self._clear_local_log()
+                self._is_publishing = False
             else:
                 raise RuntimeError(_(
                     "Cannot publish log file '%s' as it does not exist.") %
@@ -334,6 +342,7 @@ class GuestLog(object):
         log_component, log_lines = '', 0
         chunk_size = CONF.guest_log_limit
         container_name = self.get_container_name(force=True)
+        self._is_publishing = True
 
         def _read_chunk(f):
             while True:
