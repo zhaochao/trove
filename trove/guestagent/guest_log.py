@@ -310,6 +310,10 @@ class GuestLog(object):
         self._is_publishing = False
 
     def publish_log(self):
+        if self._is_publishing:
+            raise exception.TroveError(_(
+                "Cannot publish log file '%s' as it's publishing.") %
+                self._file)
         if self.exposed:
             if os.path.isfile(self._file):
                 self.pool.spawn_n(self._publish_log)
