@@ -407,7 +407,7 @@ common_opts = [
     cfg.ListOpt('module_types', default=['ping', 'new_relic_license'],
                 help='A list of module types supported. A module type '
                      'corresponds to the name of a ModuleDriver.'),
-    cfg.StrOpt('guest_log_container_name',
+    cfg.StrOpt('guest_log_container_name_prefix',
                default='database_logs',
                help='Name of container that stores guest log components.'),
     cfg.IntOpt('guest_log_limit', default=1000000,
