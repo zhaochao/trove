@@ -107,6 +107,7 @@ class GuestLog(object):
         self._container_name = None
         self._codec = stream_codecs.JsonCodec()
         self._is_publishing = False
+        self._files_published_attime = 0
         self.pool = eventlet.GreenPool()
 
         self._set_status(self._type == LogType.USER,
@@ -216,7 +217,8 @@ class GuestLog(object):
     def log_publish_status(self):
         return {
             'is_publishing': self._is_publishing,
-            'name': self._name
+            'name': self._name,
+            'files_published_attime': self._files_published_attime
         }
 
     def _refresh_details(self):
@@ -305,6 +307,7 @@ class GuestLog(object):
         operating_system.write_file(self._file, '', as_root=True)
 
     def _publish_log(self):
+        self._files_published_attime = 0
         self._publish_to_container(self._file)
         self._clear_local_log()
         self._is_publishing = False
@@ -374,6 +377,7 @@ class GuestLog(object):
             self._published_size = (
                 self._published_size + len(log_component))
             self._published_header_digest = self._header_digest
+            self._files_published_attime += 1
 
         self._refresh_details()
         self._put_meta_details()
