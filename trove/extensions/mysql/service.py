@@ -335,12 +335,3 @@ class SchemaController(wsgi.Controller):
 
     def show(self, req, tenant_id, instance_id, id):
         raise webob.exc.HTTPNotImplemented()
-
-
-class MySQLRootController(DefaultRootController):
-
-    def _find_root_user(self, context, instance_id):
-        user = guest_models.MySQLRootUser()
-        return models.User.load(context, instance_id,
-                                user.name, user.host,
-                                root_user=True)

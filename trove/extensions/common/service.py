@@ -93,13 +93,8 @@ class DefaultRootController(BaseDatastoreRootController):
         LOG.info(_LI("Disabling root for instance '%s'.") % instance_id)
         LOG.info(_LI("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
-        try:
-            found_user = self._find_root_user(context, instance_id)
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(message=str(e))
-        if not found_user:
-            raise exception.UserNotFound(uuid="root")
-        models.Root.delete(context, instance_id)
+        if models.Root.load(context, instance_id):
+            models.Root.delete(context, instance_id)
         return wsgi.Result(None, 200)
 
 
