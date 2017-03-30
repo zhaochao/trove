@@ -247,6 +247,10 @@ class SimpleInstance(object):
         return self.status in [InstanceStatus.BUILD]
 
     @property
+    def is_backing_up(self):
+        return self.status in [InstanceStatus.BACKUP]
+
+    @property
     def is_error(self):
         return self.status in [InstanceStatus.ERROR]
 
@@ -604,7 +608,7 @@ class BaseInstance(SimpleInstance):
 
     def delete(self):
         def _delete_resources():
-            if self.is_building:
+            if self.is_building or self.is_backing_up:
                 raise exception.UnprocessableEntity(
                     "Instance %s is not ready. (Status is %s)." %
                     (self.id, self.status))
