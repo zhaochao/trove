@@ -540,7 +540,7 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                 'datastore_version': master.datastore_version.name,
             })
             snapshot = master.get_replication_snapshot(
-                snapshot_info, flavor=master.flavor_id)
+                snapshot_info, flavor=master.flavor_id, quota=False)
             snapshot.update({
                 'config': self._render_replica_config(flavor).config_contents
             })
@@ -556,7 +556,7 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             try:
                 # Only try to delete the backup if it's the first replica
                 if replica_number == 1 and backup_required:
-                    Backup.delete(context, replica_backup_id)
+                    Backup.delete(context, replica_backup_id, quota=False)
             except Exception as e_delete:
                 LOG.error(msg_create)
                 # Make sure we log any unexpected errors from the create
@@ -1192,7 +1192,7 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                   self.id)
         return self.guest.backup_required_for_replication()
 
-    def get_replication_snapshot(self, snapshot_info, flavor):
+    def get_replication_snapshot(self, snapshot_info, flavor, quota=True):
 
         def _get_replication_snapshot():
             LOG.debug("Calling get_replication_snapshot on %s.", self.id)
@@ -1207,8 +1207,10 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                               % self.id)
                 raise
 
-        return run_with_quotas(self.context.tenant, {'backups': 1},
-                               _get_replication_snapshot)
+        if quota:
+            return run_with_quotas(self.context.tenant, {'backups': 1},
+                                   _get_replication_snapshot)
+        return _get_replication_snapshot()
 
     def detach_replica(self, master, for_failover=False):
         LOG.debug("Calling detach_replica on %s" % self.id)

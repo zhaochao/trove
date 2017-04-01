@@ -49,7 +49,7 @@ class Backup(object):
 
     @classmethod
     def create(cls, context, instance, name, description=None,
-               parent_id=None, incremental=False):
+               parent_id=None, incremental=False, quota=True):
         """
         create db record for Backup
         :param cls:
@@ -124,9 +124,12 @@ class Backup(object):
                            }
             api.API(context).create_backup(backup_info, instance_id)
             return db_info
-        return run_with_quotas(context.tenant,
-                               {'backups': 1},
-                               _create_resources)
+
+        if quota:
+            return run_with_quotas(context.tenant,
+                                   {'backups': 1},
+                                   _create_resources)
+        return _create_resources()
 
     @classmethod
     def running(cls, instance_id, exclude=None):
@@ -252,7 +255,7 @@ class Backup(object):
             backup.save()
 
     @classmethod
-    def delete(cls, context, backup_id):
+    def delete(cls, context, backup_id, quota=True):
         """
         update Backup table on deleted flag for given Backup
         :param cls:
@@ -280,9 +283,11 @@ class Backup(object):
             cls.verify_swift_auth_token(context)
             api.API(context).delete_backup(backup_id)
 
-        return run_with_quotas(context.tenant,
-                               {'backups': -1},
-                               _delete_resources)
+        if quota:
+            return run_with_quotas(context.tenant,
+                                   {'backups': -1},
+                                   _delete_resources)
+        return _delete_resources()
 
     @classmethod
     def verify_swift_auth_token(cls, context):
