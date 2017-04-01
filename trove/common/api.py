@@ -112,6 +112,10 @@ class API(wsgi.Router):
                        controller=instance_resource,
                        action="guest_log_list",
                        conditions={'method': ['GET']})
+        mapper.connect("/{tenant_id}/instances/{id}/log/{log_name}",
+                       controller=instance_resource,
+                       action="guest_log_publish_status",
+                       conditions={'method': ['GET']})
         mapper.connect("/{tenant_id}/instances/{id}/log",
                        controller=instance_resource,
                        action="guest_log_action",

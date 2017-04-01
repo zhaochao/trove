@@ -427,6 +427,17 @@ class InstanceController(wsgi.Controller):
         guest_log_list = client.guest_log_list()
         return wsgi.Result({'logs': guest_log_list}, 200)
 
+    def guest_log_publish_status(self, req, tenant_id, id, log_name):
+        """Return log publish status for an instance."""
+        LOG.debug("get log publish status for tenant %s" % tenant_id)
+        context = req.environ[wsgi.CONTEXT_KEY]
+        instance = models.Instance.load(context, id)
+        if not instance:
+            raise exception.NotFound(uuid=id)
+        client = create_guest_client(context, id)
+        guest_log_publish_status = client.guest_log_publish_status(log_name)
+        return wsgi.Result({'logs': guest_log_publish_status}, 200)
+
     def guest_log_action(self, req, body, tenant_id, id):
         """Processes a guest log."""
         LOG.info(_("Processing log for tenant %s"), tenant_id)

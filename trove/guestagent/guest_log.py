@@ -14,6 +14,7 @@
 
 from datetime import datetime
 import enum
+import eventlet
 import hashlib
 import os
 from requests.exceptions import ConnectionError
@@ -105,6 +106,9 @@ class GuestLog(object):
         self._file_readable = False
         self._container_name = None
         self._codec = stream_codecs.JsonCodec()
+        self._is_publishing = False
+        self._files_published_attime = 0
+        self.pool = eventlet.GreenPool()
 
         self._set_status(self._type == LogType.USER,
                          LogStatus.Disabled, LogStatus.Enabled)
@@ -198,9 +202,7 @@ class GuestLog(object):
             if self._published_size:
                 container_name = self.get_container_name()
                 prefix = self._object_prefix()
-            pending = self._size - self._published_size
-            if self.status == LogStatus.Rotated:
-                pending = self._size
+            pending = self._size
             return {
                 'name': self._name,
                 'type': self._type.name,
@@ -214,6 +216,13 @@ class GuestLog(object):
         else:
             raise exception.UnauthorizedRequest(_(
                 "Not authorized to show log '%s'.") % self._name)
+
+    def log_publish_status(self):
+        return {
+            'is_publishing': self._is_publishing,
+            'name': self._name,
+            'files_published_attime': self._files_published_attime
+        }
 
     def _refresh_details(self):
 
@@ -258,14 +267,12 @@ class GuestLog(object):
             self._size = logstat.st_size
             self._update_log_header_digest(self._file)
 
-            if self._log_rotated():
-                self.status = LogStatus.Rotated
             # See if we have stuff to publish
-            elif logstat.st_size > self._published_size:
+            if logstat.st_size > 0:
                 self._set_status(self._published_size,
                                  LogStatus.Partial, LogStatus.Ready)
             # We've published everything so far
-            elif logstat.st_size == self._published_size:
+            elif logstat.st_size == 0:
                 self._set_status(self._published_size,
                                  LogStatus.Published, LogStatus.Enabled)
             # We've already handled this case (log rotated) so what gives?
@@ -275,7 +282,7 @@ class GuestLog(object):
             self._published_size = 0
             self._size = 0
 
-        if not self._size or not self.enabled:
+        if not os.path.isfile(self._file) or not self.enabled:
             user_status = LogStatus.Disabled
             if self.enabled:
                 user_status = LogStatus.Enabled
@@ -299,19 +306,32 @@ class GuestLog(object):
     def _get_headers(self):
         return {'X-Delete-After': str(CONF.guest_log_expiry)}
 
+    def _clear_local_log(self):
+        operating_system.write_file(self._file, '', as_root=True)
+
+    def _publish_log(self):
+        self._files_published_attime = 0
+        self._publish_to_container(self._file)
+        self._clear_local_log()
+        self._is_publishing = False
+
     def publish_log(self):
+        if self._is_publishing:
+            raise exception.TroveError(_(
+                "Cannot publish log file '%s' as it's publishing.") %
+                self._file)
         if self.exposed:
-            if self._log_rotated():
-                LOG.debug("Log file rotation detected for '%s' - "
-                          "discarding old log" % self._name)
-                self._delete_log_components()
             if os.path.isfile(self._file):
-                self._publish_to_container(self._file)
+                self.pool.spawn_n(self._publish_log)
             else:
                 raise RuntimeError(_(
                     "Cannot publish log file '%s' as it does not exist.") %
                     self._file)
-            return self.show()
+            return {
+                'name': self._name,
+                'type': self._type.name,
+                'metafile': self._metafile_name()
+            }
         else:
             raise exception.UnauthorizedRequest(_(
                 "Not authorized to publish log '%s'.") % self._name)
@@ -341,6 +361,7 @@ class GuestLog(object):
         log_component, log_lines = '', 0
         chunk_size = CONF.guest_log_limit
         container_name = self.get_container_name(force=True)
+        self._is_publishing = True
 
         def _read_chunk(f):
             while True:
@@ -359,13 +380,12 @@ class GuestLog(object):
             self._published_size = (
                 self._published_size + len(log_component))
             self._published_header_digest = self._header_digest
+            self._files_published_attime += 1
 
         self._refresh_details()
         self._put_meta_details()
         object_headers = self._get_headers()
         with open(log_filename, 'r') as log:
-            LOG.debug("seeking to %s", self._published_size)
-            log.seek(self._published_size)
             for chunk in _read_chunk(log):
                 for log_line in chunk.splitlines():
                     if len(log_component) + len(log_line) > chunk_size:

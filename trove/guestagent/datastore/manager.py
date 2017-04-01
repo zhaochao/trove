@@ -475,6 +475,16 @@ class Manager(periodic_task.PeriodicTasks):
         LOG.info(_("Returning list of logs: %s") % result)
         return result
 
+    def guest_log_publish_status(self, context, log_name):
+        LOG.info(_("Getting publish status of guest logs."))
+        self.guest_log_context = context
+        gl_cache = self.guest_log_cache
+        if log_name in gl_cache:
+            result = gl_cache[log_name].log_publish_status()
+            LOG.info(_("Returning publish status of logs: %s") % result)
+            return result
+        raise exception.NotFound("Log '%s' is not defined." % log_name)
+
     def guest_log_action(self, context, log_name, enable, disable,
                          publish, discard):
         if enable and disable:

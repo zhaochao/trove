@@ -1365,6 +1365,17 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
         finally:
             self.reset_task_status()
 
+    def guest_log_publish_status(self, log_name):
+        LOG.info(_("Retrieving guest log publish status for instance %s.") %
+                 self.id)
+        try:
+            return self.guest.guest_log_publish_status(log_name)
+        except GuestError:
+            LOG.error(_("Failed to retrieve guest log publish status for "
+                        "instance %s.") % self.id)
+        finally:
+            self.reset_task_status()
+
     def guest_log_action(self, log_name, enable, disable, publish, discard):
         LOG.info(_("Processing guest log for instance %s.") % self.id)
         try:
