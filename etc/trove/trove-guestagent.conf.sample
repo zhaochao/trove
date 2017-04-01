@@ -57,7 +57,7 @@ root_grant_option = True
 # storage_namespace = trove.common.strategies.storage.swift
 
 # Default config options for storing backups to swift
-# backup_swift_container = database_backups
+# backup_swift_container_prefix = database_backups
 # backup_use_gzip_compression = True
 # backup_use_openssl_encryption = True
 # backup_aes_cbc_key = "default_aes_cbc_key"

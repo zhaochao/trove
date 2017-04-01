@@ -1464,21 +1464,32 @@ class BackupTasks(object):
         return container, prefix
 
     @classmethod
-    def delete_files_from_swift(cls, context, filename):
-        container = CONF.backup_swift_container
+    def delete_files_from_swift(cls, context, filename, tenant):
+        container = '%(prefix)s_%(tenant)s' % {
+            'prefix': CONF.backup_swift_container_prefix,
+            'tenant': tenant
+        }
         client = remote.create_swift_client(context)
         obj = client.head_object(container, filename)
-        if 'x-static-large-object' in obj:
-            # Static large object
-            LOG.debug("Deleting large object file: %(cont)s/%(filename)s" %
-                      {'cont': container, 'filename': filename})
-            client.delete_object(container, filename,
-                                 query_string='multipart-manifest=delete')
-        else:
-            # Single object
-            LOG.debug("Deleting object file: %(cont)s/%(filename)s" %
-                      {'cont': container, 'filename': filename})
-            client.delete_object(container, filename)
+        manifest = obj.get('x-object-manifest', '')
+        cont, prefix = cls._parse_manifest(manifest)
+        if all([cont, prefix]):
+            # This is a manifest file, first delete all segments.
+            LOG.debug("Deleting files with prefix: %(cont)s/%(prefix)s" %
+                      {'cont': cont, 'prefix': prefix})
+            # list files from container/prefix specified by manifest
+            headers, segments = client.get_container(cont, prefix=prefix)
+            LOG.debug(headers)
+            for segment in segments:
+                name = segment.get('name')
+                if name:
+                    LOG.debug("Deleting file: %(cont)s/%(name)s" %
+                              {'cont': cont, 'name': name})
+                    client.delete_object(cont, name)
+        # Delete the manifest file
+        LOG.debug("Deleting file: %(cont)s/%(filename)s" %
+                  {'cont': cont, 'filename': filename})
+        client.delete_object(container, filename)
 
     @classmethod
     def delete_backup(cls, context, backup_id):
@@ -1487,8 +1498,9 @@ class BackupTasks(object):
         backup = bkup_models.Backup.get_by_id(context, backup_id)
         try:
             filename = backup.filename
-            if filename:
-                BackupTasks.delete_files_from_swift(context, filename)
+            tenant = backup.tenant_id
+            if filename and tenant:
+                BackupTasks.delete_files_from_swift(context, filename, tenant)
         except ValueError:
             backup.delete()
         except ClientException as e:

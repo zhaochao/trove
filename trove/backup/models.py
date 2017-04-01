@@ -272,6 +272,11 @@ class Backup(object):
             if backup.is_running:
                 msg = _("Backup %s cannot be deleted because it is running.")
                 raise exception.UnprocessableEntity(msg % backup_id)
+            if context.tenant != backup.tenant_id:
+                msg = _("Can't delete bakcup as different tenant. backup: %s, "
+                        "context: %s")
+                raise exception.UnprocessableEntity(msg % (
+                    backup.tenant_id, context.tenant))
             cls.verify_swift_auth_token(context)
             api.API(context).delete_backup(backup_id)
 
