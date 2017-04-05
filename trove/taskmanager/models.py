@@ -1076,6 +1076,12 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
         LOG.debug("Begin _delete_resources for instance %s" % self.id)
         server_id = self.db_info.compute_instance_id
         old_server = self.nova_client.servers.get(server_id)
+
+        try:
+            self._delete_log_files()
+        except Exception:
+            LOG.exception(_("Error delete log for instacnce id %s.") % self.id)
+
         try:
             # The server may have already been marked as 'SHUTDOWN'
             # but check for 'ACTIVE' in case of any race condition
@@ -1153,6 +1159,30 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                             deleted_at=timeutils.isotime(deleted_at),
                             server=old_server).notify()
         LOG.debug("End _delete_resources for instance %s" % self.id)
+
+    def _delete_files_from_swift(self, container, prefix):
+        client = remote.create_swift_client(self.context)
+        swift_files = [swift_file['name']
+                       for swift_file in client.get_container(
+                           container, prefix=prefix)[1]]
+        for swift_file in swift_files:
+            client.delete_object(container, swift_file)
+
+    def _delete_log_files(self):
+        LOG.debug("Delete log files for instance %s" % self.id)
+        logs = self.guest_log_list()
+        have_log = False
+        container_name = None
+        prefix = self.id
+        for log in logs:
+            if log.get('status', None) in ['Published', 'Partial'] and log.get(
+                    'container', None):
+                have_log = True
+                container_name = log.get('container')
+                break
+        if have_log:
+            self.pool.spawn_n(self._delete_files_from_swift, (
+                container_name, prefix))
 
     def server_status_matches(self, expected_status, server=None):
         if not server:
