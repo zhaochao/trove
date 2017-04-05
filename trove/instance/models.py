@@ -614,6 +614,10 @@ class BaseInstance(SimpleInstance):
                 raise exception.UnprocessableEntity(
                     "Instance %s is not ready. (Status is %s)." %
                     (self.id, self.status))
+            if self.tenant_id != self.context.tenant:
+                raise exception.UnprocessableEntity(
+                    "Can't delete instance as different tenant. instance: %s, "
+                    "context: %s" % (self.tenant_id, self.context.tenant))
             LOG.debug("Deleting instance with compute id = %s.",
                       self.db_info.compute_instance_id)
 
