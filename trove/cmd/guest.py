@@ -32,7 +32,10 @@ guest_opts = [
     openstack_cfg.StrOpt('guest_id', default=None,
                          help="ID of the Guest Instance."),
     openstack_cfg.StrOpt('tenant_id', default=None,
-                         help="Tenant ID of the Guest Instance.")
+                         help="Tenant ID of the Guest Instance."),
+    openstack_cfg.StrOpt('swift_container_allowed_origins',
+                         default=None,
+                         help="CORS Allowed Origins for Swift Containers.")
 ]
 CONF.register_opts(guest_opts)
 

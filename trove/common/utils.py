@@ -422,3 +422,21 @@ def req_to_text(req):
         parts.extend(safe_encode(req.body))
 
     return '\r\n'.join(parts).decode(req.charset)
+
+
+def is_valid_origins(origins):
+    """
+    Validate Swift container CORS allowed origins. Validation is exactly same
+    with Ceph RadosGW Swift API.
+    """
+    if origins:
+        origin_list = [o.strip() for o in origins.split(',')]
+        for origin in origin_list:
+            if not origin:
+                return False
+            elif origin.find('*') != origin.rfind('*'):
+                return False
+
+        return True
+
+    return False
