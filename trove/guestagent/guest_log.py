@@ -27,6 +27,7 @@ from trove.common import exception
 from trove.common.i18n import _
 from trove.common.remote import create_swift_client
 from trove.common import stream_codecs
+from trove.common.utils import is_valid_origins
 from trove.guestagent.common import operating_system
 from trove.guestagent.common.operating_system import FileMode
 
@@ -179,8 +180,10 @@ class GuestLog(object):
                 if ex.http_status == 404:
                     LOG.debug("Container '%s' not found; creating now" %
                               container_name)
+                    headers = self._get_headers()
+                    self._headers_append_cors(headers)
                     self.swift_client.put_container(
-                        container_name, headers=self._get_headers())
+                        container_name, headers=headers)
                 else:
                     LOG.exception(_("Could not retrieve container '%s'") %
                                   container_name)
@@ -305,6 +308,16 @@ class GuestLog(object):
 
     def _get_headers(self):
         return {'X-Delete-After': str(CONF.guest_log_expiry)}
+
+    def _headers_append_cors(self, headers):
+        allow_origins = CONF.swift_container_allowed_origins
+        if is_valid_origins(allow_origins):
+            cors_headers = {
+                'X-Container-Meta-Access-Control-Allow-Origin': (
+                    str(allow_origins)),
+                'X-Container-Meta-Access-Control-Allow-Headers': 'X-Auth-Token'
+            }
+            headers.update(cors_headers)
 
     def _clear_local_log(self):
         operating_system.write_file(self._file, '', as_root=True)
