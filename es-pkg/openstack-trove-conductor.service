@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenStack Trove Conductor Service
+After=syslog.target network.target mariadb.service
+
+[Service]
+Type=simple
+User=trove
+ExecStart=/usr/bin/trove-conductor
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
