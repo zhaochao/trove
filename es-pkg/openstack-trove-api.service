@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenStack Trove API Service
+After=syslog.target network.target mariadb.service
+
+[Service]
+Type=simple
+User=trove
+ExecStart=/usr/bin/trove-api
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
