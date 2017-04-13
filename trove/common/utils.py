@@ -419,7 +419,7 @@ def req_to_text(req):
         parts.append(header)
 
     if req.body:
-        parts.extend(safe_encode(req.body))
+        parts.extend(['', safe_encode(req.body)])
 
     return '\r\n'.join(parts).decode(req.charset)
 
