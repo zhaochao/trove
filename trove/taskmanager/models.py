@@ -1181,8 +1181,8 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                 container_name = log.get('container')
                 break
         if have_log:
-            self.pool.spawn_n(self._delete_files_from_swift, (
-                container_name, prefix))
+            self.pool.spawn_n(self._delete_files_from_swift,
+                              container_name, prefix)
 
     def server_status_matches(self, expected_status, server=None):
         if not server:
