@@ -228,7 +228,7 @@ class Manager(periodic_task.PeriodicTasks):
                               "(exposed: %s)" %
                               (log_name, gl_def, exposed))
                     self._guest_log_cache[log_name] = guest_log.GuestLog(
-                        self.guest_log_context, log_name,
+                        self, self.guest_log_context, log_name,
                         gl_def[self.GUEST_LOG_TYPE_LABEL],
                         gl_def[self.GUEST_LOG_USER_LABEL],
                         gl_def[self.GUEST_LOG_FILE_LABEL],
@@ -576,6 +576,12 @@ class Manager(periodic_task.PeriodicTasks):
             raise exception.GuestError(original_message=msg)
 
         return restart_required
+
+    def guest_log_flush(self, context):
+        pass
+
+    def recreate_log_file(self, log_file, tmp_file):
+        pass
 
     def _apply_log_overrides(self, context, remove_label,
                              apply_label, cfg_values, section_label,
