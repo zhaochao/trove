@@ -88,8 +88,9 @@ class GuestLog(object):
     MF_LABEL_LOG_SIZE = 'log_size'
     MF_LABEL_LOG_HEADER = 'log_header_digest'
 
-    def __init__(self, log_context, log_name, log_type, log_user, log_file,
-                 log_exposed):
+    def __init__(self, guest_manager, log_context, log_name, log_type,
+                 log_user, log_file, log_exposed):
+        self._guest_manager = guest_manager
         self._context = log_context
         self._name = log_name
         self._type = log_type
@@ -110,6 +111,7 @@ class GuestLog(object):
         self._is_publishing = False
         self._files_published_attime = 0
         self.pool = eventlet.GreenPool()
+        self._partially_published = False
 
         self._set_status(self._type == LogType.USER,
                          LogStatus.Disabled, LogStatus.Enabled)
@@ -138,6 +140,15 @@ class GuestLog(object):
             self._cached_swift_client = create_swift_client(self.context)
             self._cached_context = self.context
         return self._cached_swift_client
+
+    @property
+    def tmp_log_filename(self):
+        _tmp_log_filename = '%s.tmp' % self._file
+        if not operating_system.exists(_tmp_log_filename):
+            operating_system.write_file(_tmp_log_filename, '', as_root=True)
+            operating_system.chown(_tmp_log_filename, 'trove', '',
+                                   as_root=True)
+        return _tmp_log_filename
 
     @property
     def exposed(self):
@@ -320,12 +331,19 @@ class GuestLog(object):
             headers.update(cors_headers)
 
     def _clear_local_log(self):
-        operating_system.write_file(self._file, '', as_root=True)
+        if not self._partially_published:
+            operating_system.write_file(self._file, '', as_root=True)
+            operating_system.remove(self.tmp_log_filename, force=True,
+                                    as_root=True)
+        else:
+            self._guest_manager.recreate_log_file(self._file,
+                                                  self.tmp_log_filename)
 
     def _publish_log(self):
         self._files_published_attime = 0
         self._publish_to_container(self._file)
         self._clear_local_log()
+        self._partially_published = False
         self._is_publishing = False
 
     def publish_log(self):
@@ -375,6 +393,7 @@ class GuestLog(object):
         chunk_size = CONF.guest_log_limit
         container_name = self.get_container_name(force=True)
         self._is_publishing = True
+        tmp = open(self.tmp_log_filename, 'a+')
 
         def _read_chunk(f):
             while True:
@@ -384,16 +403,25 @@ class GuestLog(object):
                 yield current_chunk
 
         def _write_log_component():
-            object_headers.update({'x-object-meta-lines': str(log_lines)})
-            component_name = '%s%s' % (self._object_prefix(),
-                                       self._object_name())
-            self.swift_client.put_object(container_name,
-                                         component_name, log_component,
-                                         headers=object_headers)
-            self._published_size = (
-                self._published_size + len(log_component))
-            self._published_header_digest = self._header_digest
-            self._files_published_attime += 1
+            if not self._partially_published:
+                object_headers.update({'x-object-meta-lines': str(log_lines)})
+                component_name = '%s%s' % (self._object_prefix(),
+                                           self._object_name())
+                try:
+                    self.swift_client.put_object(container_name,
+                                                 component_name, log_component,
+                                                 headers=object_headers)
+                    self._published_size = (
+                        self._published_size + len(log_component))
+                    self._published_header_digest = self._header_digest
+                    self._files_published_attime += 1
+                    self._put_meta_details()
+                except Exception as ex:
+                    self._partially_published = True
+                    tmp.write(log_component)
+                    LOG.exception(_('Log partially published: %s') % ex)
+            else:
+                tmp.write(log_component)
 
         self._refresh_details()
         self._put_meta_details()
@@ -408,7 +436,8 @@ class GuestLog(object):
                     log_lines += 1
         if log_lines > 0:
             _write_log_component()
-        self._put_meta_details()
+
+        tmp.close()
 
     def _put_meta_details(self):
         metafile_name = self._metafile_name()

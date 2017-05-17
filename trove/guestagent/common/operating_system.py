@@ -266,6 +266,11 @@ class FileMode(object):
         return cls(add=[stat.S_IRGRP | stat.S_IXGRP |
                         stat.S_IROTH | stat.S_IXOTH])  # +0055
 
+    @classmethod
+    def ADD_USR_RW_GRP_R_OTH_R(cls):
+        return cls(add=[stat.S_IRUSR | stat.S_IWUSR |
+                        stat.S_IRGRP | stat.S_IROTH])  # +0644
+
     def __init__(self, reset=None, add=None, remove=None):
         self._reset = list(reset) if reset is not None else []
         self._add = list(add) if add is not None else []

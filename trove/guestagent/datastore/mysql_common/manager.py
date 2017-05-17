@@ -434,3 +434,13 @@ class MySqlManager(manager.Manager):
         LOG.debug("Demoting replication master.")
         app = self.mysql_app(self.mysql_app_status.get())
         self.replication.demote_master(app)
+
+    def guest_log_flush(self, context):
+        LOG.debug("Flush mysql log.")
+        app = self.mysql_app(self.mysql_app_status.get())
+        app.guest_log_flush()
+
+    def recreate_log_file(self, log_file, tmp_file):
+        LOG.debug("Recreate mysql log.")
+        app = self.mysql_app(self.mysql_app_status.get())
+        app.recreate_log_file(log_file, tmp_file)
