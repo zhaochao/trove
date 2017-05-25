@@ -31,9 +31,35 @@ from trove.common.utils import is_valid_origins
 from trove.guestagent.common import operating_system
 from trove.guestagent.common.operating_system import FileMode
 
+from trove.common.notification import (
+    StartNotification,
+    DBaaSAPINotification)
+
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
+
+
+class DBaaSLogPublish(DBaaSAPINotification):
+
+    server_type = 'guest'
+
+    def event_type(self):
+        return 'log_publish'
+
+    def required_base_traits(self):
+        return ['tenant_id', 'server_type', 'request_id', 'instance_id',
+                'log_name']
+
+    def required_start_traits(self):
+        return []
+
+
+class StartLogPublishNotification(StartNotification):
+
+    @property
+    def _notifier(self):
+        return self.context.notification
 
 
 class LogType(enum.Enum):
@@ -340,11 +366,20 @@ class GuestLog(object):
                                                   self.tmp_log_filename)
 
     def _publish_log(self):
-        self._files_published_attime = 0
-        self._publish_to_container(self._file)
-        self._clear_local_log()
-        self._partially_published = False
-        self._is_publishing = False
+        payload = {
+            'request_id': self.context.request_id,
+            'tenant_id': self.context.tenant,
+            'instance_id': CONF.guest_id,
+            'server_type': 'guest',
+            'log_name': self._name
+        }
+        self.context.notification = DBaaSLogPublish(self.context, **payload)
+        with StartLogPublishNotification(self.context):
+            self._files_published_attime = 0
+            self._publish_to_container(self._file)
+            self._clear_local_log()
+            self._partially_published = False
+            self._is_publishing = False
 
     def publish_log(self):
         if self._is_publishing:
