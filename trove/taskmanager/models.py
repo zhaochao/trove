@@ -1160,29 +1160,25 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                             server=old_server).notify()
         LOG.debug("End _delete_resources for instance %s" % self.id)
 
-    def _delete_files_from_swift(self, container, prefix):
-        client = remote.create_swift_client(self.context)
-        swift_files = [swift_file['name']
-                       for swift_file in client.get_container(
-                           container, prefix=prefix)[1]]
-        for swift_file in swift_files:
-            client.delete_object(container, swift_file)
-
     def _delete_log_files(self):
         LOG.debug("Delete log files for instance %s" % self.id)
-        logs = self.guest_log_list()
-        have_log = False
-        container_name = None
+        client = remote.create_swift_client(self.context)
+        container_name = '%(prefix)s_%(tenant)s' % {
+            'prefix': CONF.guest_log_container_name_prefix,
+            'tenant': self.context.tenant
+        }
         prefix = self.id
-        for log in logs:
-            if log.get('status', None) in ['Published', 'Partial'] and log.get(
-                    'container', None):
-                have_log = True
-                container_name = log.get('container')
-                break
-        if have_log:
-            self.pool.spawn_n(self._delete_files_from_swift,
-                              container_name, prefix)
+
+        def _delete_files_from_swift():
+            swift_files = [swift_file['name']
+                           for swift_file in client.get_container(
+                               container_name, prefix=prefix)[1]]
+            for swift_file in swift_files:
+                client.delete_object(container_name, swift_file)
+
+        if container_name in [container.get('name')
+                              for container in client.get_account()[1]]:
+            self.pool.spawn_n(_delete_files_from_swift)
 
     def server_status_matches(self, expected_status, server=None):
         if not server:
