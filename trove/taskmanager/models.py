@@ -556,7 +556,16 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             try:
                 # Only try to delete the backup if it's the first replica
                 if replica_number == 1 and backup_required:
-                    Backup.delete(context, replica_backup_id, quota=False)
+                    def backup_not_running():
+                        backup_info = Backup.get_by_id(context,
+                                                       replica_backup_id)
+                        return not backup_info.is_running
+                    try:
+                        utils.poll_until(backup_not_running,
+                                         sleep_time=2,
+                                         time_out=10)
+                    finally:
+                        Backup.delete(context, replica_backup_id, quota=False)
             except Exception as e_delete:
                 LOG.error(msg_create)
                 # Make sure we log any unexpected errors from the create
