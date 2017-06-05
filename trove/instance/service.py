@@ -266,7 +266,7 @@ class InstanceController(wsgi.Controller):
             users = populate_users(body['instance'].get('users', []),
                                    database_names)
         except ValueError as ve:
-            raise exception.BadRequest(msg=ve)
+            raise exception.BadRequest(message=str(ve))
 
         if 'volume' in body['instance']:
             volume_info = body['instance']['volume']
@@ -298,12 +298,12 @@ class InstanceController(wsgi.Controller):
                                    (locality,
                                     "', '".join(locality_domain)))
             if locality not in locality_domain:
-                raise exception.BadRequest(msg=locality_domain_msg)
+                raise exception.BadRequest(message=locality_domain_msg)
             if slave_of_id:
                 dupe_locality_msg = (
                     'Cannot specify locality when adding replicas to existing '
                     'master.')
-                raise exception.BadRequest(msg=dupe_locality_msg)
+                raise exception.BadRequest(message=dupe_locality_msg)
 
         instance = models.Instance.create(context, name, flavor_id,
                                           image_id, databases, users,
@@ -426,6 +426,17 @@ class InstanceController(wsgi.Controller):
         client = create_guest_client(context, id)
         guest_log_list = client.guest_log_list()
         return wsgi.Result({'logs': guest_log_list}, 200)
+
+    def guest_log_publish_status(self, req, tenant_id, id, log_name):
+        """Return log publish status for an instance."""
+        LOG.debug("get log publish status for tenant %s" % tenant_id)
+        context = req.environ[wsgi.CONTEXT_KEY]
+        instance = models.Instance.load(context, id)
+        if not instance:
+            raise exception.NotFound(uuid=id)
+        client = create_guest_client(context, id)
+        guest_log_publish_status = client.guest_log_publish_status(log_name)
+        return wsgi.Result({'logs': guest_log_publish_status}, 200)
 
     def guest_log_action(self, req, body, tenant_id, id):
         """Processes a guest log."""

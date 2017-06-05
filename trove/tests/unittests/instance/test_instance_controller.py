@@ -138,17 +138,17 @@ class TestInstanceController(trove_testtools.TestCase):
         errors = sorted(validator.iter_errors(body), key=lambda e: e.path)
         self.assertThat(len(errors), Is(1))
         self.assertThat(errors[0].message,
-                        Equals("'     ' does not match '^.*[0-9a-zA-Z]+.*$'"))
+                        Equals("'     ' does not match '^\\\\S+$'"))
 
     def test_validate_create_invalid_name(self):
         body = self.instance
-        body['instance']['name'] = "$#$%^^"
+        body['instance']['name'] = "a b\tc\nd"
         schema = self.controller.get_schema('create', body)
         validator = jsonschema.Draft4Validator(schema)
         self.assertFalse(validator.is_valid(body))
         errors = sorted(validator.iter_errors(body), key=lambda e: e.path)
         self.assertEqual(1, len(errors))
-        self.assertIn("'$#$%^^' does not match '^.*[0-9a-zA-Z]+.*$'",
+        self.assertIn("'a b\\tc\\nd' does not match '^\\\\S+$'",
                       errors[0].message)
 
     def test_validate_create_invalid_locality(self):

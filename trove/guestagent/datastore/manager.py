@@ -228,7 +228,7 @@ class Manager(periodic_task.PeriodicTasks):
                               "(exposed: %s)" %
                               (log_name, gl_def, exposed))
                     self._guest_log_cache[log_name] = guest_log.GuestLog(
-                        self.guest_log_context, log_name,
+                        self, self.guest_log_context, log_name,
                         gl_def[self.GUEST_LOG_TYPE_LABEL],
                         gl_def[self.GUEST_LOG_USER_LABEL],
                         gl_def[self.GUEST_LOG_FILE_LABEL],
@@ -475,6 +475,16 @@ class Manager(periodic_task.PeriodicTasks):
         LOG.info(_("Returning list of logs: %s") % result)
         return result
 
+    def guest_log_publish_status(self, context, log_name):
+        LOG.info(_("Getting publish status of guest logs."))
+        self.guest_log_context = context
+        gl_cache = self.guest_log_cache
+        if log_name in gl_cache:
+            result = gl_cache[log_name].log_publish_status()
+            LOG.info(_("Returning publish status of logs: %s") % result)
+            return result
+        raise exception.NotFound("Log '%s' is not defined." % log_name)
+
     def guest_log_action(self, context, log_name, enable, disable,
                          publish, discard):
         if enable and disable:
@@ -501,6 +511,11 @@ class Manager(periodic_task.PeriodicTasks):
                     raise exception.BadRequest("Cannot %s a SYSTEM log ('%s')."
                                                % (action_text, log_name))
             if gl_cache[log_name].type == guest_log.LogType.USER:
+                if (discard or publish) and context.tenant != CONF.get(
+                        'tenant_id'):
+                    raise exception.BadRequest(
+                        "Cannot %s %s log as use different tenant_id." %
+                        ('discard' if discard else 'publish', log_name))
                 requires_change = (
                     (gl_cache[log_name].enabled and disable) or
                     (not gl_cache[log_name].enabled and enable))
@@ -561,6 +576,12 @@ class Manager(periodic_task.PeriodicTasks):
             raise exception.GuestError(original_message=msg)
 
         return restart_required
+
+    def guest_log_flush(self, context):
+        pass
+
+    def recreate_log_file(self, log_file, tmp_file):
+        pass
 
     def _apply_log_overrides(self, context, remove_label,
                              apply_label, cfg_values, section_label,

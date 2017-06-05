@@ -57,7 +57,8 @@ class SchemaView(object):
         self.schema = schema
 
     def data(self):
-        return {"name": self.schema.name}
+        return {"name": self.schema.name,
+                "character_set": self.schema.character_set}
 
 
 class SchemasView(object):

@@ -17,6 +17,7 @@
 """Model classes that form the core of instances functionality."""
 from datetime import datetime
 from datetime import timedelta
+import eventlet
 import os.path
 import re
 
@@ -245,6 +246,10 @@ class SimpleInstance(object):
     @property
     def is_building(self):
         return self.status in [InstanceStatus.BUILD]
+
+    @property
+    def is_backing_up(self):
+        return self.status in [InstanceStatus.BACKUP]
 
     @property
     def is_error(self):
@@ -598,16 +603,21 @@ class BaseInstance(SimpleInstance):
         self._volume_client = None
         self._server_group = None
         self._server_group_loaded = False
+        self.pool = eventlet.GreenPool()
 
     def get_guest(self):
         return create_guest_client(self.context, self.db_info.id)
 
     def delete(self):
         def _delete_resources():
-            if self.is_building:
+            if self.is_building or self.is_backing_up:
                 raise exception.UnprocessableEntity(
                     "Instance %s is not ready. (Status is %s)." %
                     (self.id, self.status))
+            if self.tenant_id != self.context.tenant:
+                raise exception.UnprocessableEntity(
+                    "Can't delete instance as different tenant. instance: %s, "
+                    "context: %s" % (self.tenant_id, self.context.tenant))
             LOG.debug("Deleting instance with compute id = %s.",
                       self.db_info.compute_instance_id)
 

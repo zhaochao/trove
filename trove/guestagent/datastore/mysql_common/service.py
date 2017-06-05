@@ -42,6 +42,7 @@ from trove.common.stream_codecs import IniCodec
 from trove.common import utils as utils
 from trove.guestagent.common.configuration import ConfigurationManager
 from trove.guestagent.common.configuration import ImportOverrideStrategy
+from trove.guestagent.common.operating_system import FileMode
 from trove.guestagent.common import guestagent_utils
 from trove.guestagent.common import operating_system
 from trove.guestagent.common import sql_query
@@ -452,7 +453,7 @@ class BaseMySqlAdmin(object):
             next_marker = None
             LOG.debug("database_names = %r." % database_names)
             for count, database in enumerate(database_names):
-                if count >= limit:
+                if limit is not None and count >= limit:
                     break
                 LOG.debug("database = %s." % str(database))
                 mysql_db = models.MySQLDatabase()
@@ -517,7 +518,7 @@ class BaseMySqlAdmin(object):
             next_marker = None
             LOG.debug("result = " + str(result))
             for count, row in enumerate(result):
-                if count >= limit:
+                if limit is not None and count >= limit:
                     break
                 LOG.debug("user = " + str(row))
                 mysql_user = models.MySQLUser()
@@ -1024,6 +1025,22 @@ class BaseMySqlApp(object):
             global ENGINE
             ENGINE = None
         self._save_authentication_properties(admin_password)
+
+    def guest_log_flush(self):
+        try:
+            out, err = utils.execute("mysqladmin", "flush-log")
+        except exception.ProcessExecutionError as ex:
+            LOG.exception(_("Cannot process: %s") % ex)
+
+    def recreate_log_file(self, log_file, tmp_file):
+        operating_system.move(tmp_file, log_file,
+                              force=True, as_root=True)
+        operating_system.chown(log_file, 'mysql', '',
+                               as_root=True)
+        operating_system.chmod(log_file,
+                               FileMode.ADD_USR_RW_GRP_R_OTH_R,
+                               as_root=True)
+        self.guest_log_flush()
 
 
 class BaseMySqlRootAccess(object):

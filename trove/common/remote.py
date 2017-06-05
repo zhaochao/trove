@@ -155,8 +155,13 @@ def heat_client(context):
 def swift_client(context):
     if CONF.swift_url:
         # swift_url has a different format so doesn't need to be normalized
-        url = '%(swift_url)s%(tenant)s' % {'swift_url': CONF.swift_url,
-                                           'tenant': context.tenant}
+        if CONF.swift_url.endswith('_'):
+            url = '%(swift_url)s%(tenant)s' % {
+                'swift_url': CONF.swift_url,
+                'tenant': context.tenant
+            }
+        else:
+            url = CONF.swift_url
     else:
         url = get_endpoint(context.service_catalog,
                            service_type=CONF.swift_service_type,

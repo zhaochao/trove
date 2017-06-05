@@ -30,6 +30,7 @@ from oslo_service import loopingcall
 from oslo_utils import importutils
 from oslo_utils import strutils
 from oslo_utils import timeutils
+from oslo_utils.encodeutils import safe_encode
 from passlib import utils as passlib_utils
 import six
 import six.moves.urllib.parse as urlparse
@@ -396,3 +397,46 @@ def to_mb(bytes):
     size = bytes / 1024.0 ** 2
     # Make sure we don't return 0.0 if the size is greater than 0
     return max(round(size, 2), 0.01)
+
+
+def req_to_text(req):
+    """
+    We do a lot request logging for debug, but if the value of one
+    requst header is encoded in utf-8, an UnicodeEncodeError will
+    be raised. So we shoud carefully encode request headers.
+
+    To be consitent with webob, main procedures are copied from
+    webob.Request.as_bytes.
+    """
+    url = req.url
+    host = req.host_url
+    assert url.startswith(host)
+    url = url[len(host):]
+    parts = [safe_encode('%s %s %s' % (req.method, url, req.http_version))]
+
+    for k, v in sorted(req.headers.items()):
+        header = safe_encode('%s: %s' % (k, v))
+        parts.append(header)
+
+    if req.body:
+        parts.extend(['', safe_encode(req.body)])
+
+    return '\r\n'.join(parts).decode(req.charset)
+
+
+def is_valid_origins(origins):
+    """
+    Validate Swift container CORS allowed origins. Validation is exactly same
+    with Ceph RadosGW Swift API.
+    """
+    if origins:
+        origin_list = [o.strip() for o in origins.split(',')]
+        for origin in origin_list:
+            if not origin:
+                return False
+            elif origin.find('*') != origin.rfind('*'):
+                return False
+
+        return True
+
+    return False

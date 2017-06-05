@@ -540,7 +540,7 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                 'datastore_version': master.datastore_version.name,
             })
             snapshot = master.get_replication_snapshot(
-                snapshot_info, flavor=master.flavor_id)
+                snapshot_info, flavor=master.flavor_id, quota=False)
             snapshot.update({
                 'config': self._render_replica_config(flavor).config_contents
             })
@@ -556,7 +556,16 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             try:
                 # Only try to delete the backup if it's the first replica
                 if replica_number == 1 and backup_required:
-                    Backup.delete(context, replica_backup_id)
+                    def backup_not_running():
+                        backup_info = Backup.get_by_id(context,
+                                                       replica_backup_id)
+                        return not backup_info.is_running
+                    try:
+                        utils.poll_until(backup_not_running,
+                                         sleep_time=2,
+                                         time_out=10)
+                    finally:
+                        Backup.delete(context, replica_backup_id, quota=False)
             except Exception as e_delete:
                 LOG.error(msg_create)
                 # Make sure we log any unexpected errors from the create
@@ -1076,6 +1085,12 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
         LOG.debug("Begin _delete_resources for instance %s" % self.id)
         server_id = self.db_info.compute_instance_id
         old_server = self.nova_client.servers.get(server_id)
+
+        try:
+            self._delete_log_files()
+        except Exception:
+            LOG.exception(_("Error delete log for instacnce id %s.") % self.id)
+
         try:
             # The server may have already been marked as 'SHUTDOWN'
             # but check for 'ACTIVE' in case of any race condition
@@ -1096,7 +1111,7 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                 name = 'trove-%s' % self.id
                 heatclient.stacks.delete(name)
             else:
-                self.server.delete()
+                self.server.force_delete()
         except Exception as ex:
             LOG.exception(_("Error during delete compute server %s")
                           % self.server.id)
@@ -1154,6 +1169,26 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                             server=old_server).notify()
         LOG.debug("End _delete_resources for instance %s" % self.id)
 
+    def _delete_log_files(self):
+        LOG.debug("Delete log files for instance %s" % self.id)
+        client = remote.create_swift_client(self.context)
+        container_name = '%(prefix)s_%(tenant)s' % {
+            'prefix': CONF.guest_log_container_name_prefix,
+            'tenant': self.context.tenant
+        }
+        prefix = self.id
+
+        def _delete_files_from_swift():
+            swift_files = [swift_file['name']
+                           for swift_file in client.get_container(
+                               container_name, prefix=prefix)[1]]
+            for swift_file in swift_files:
+                client.delete_object(container_name, swift_file)
+
+        if container_name in [container.get('name')
+                              for container in client.get_account()[1]]:
+            self.pool.spawn_n(_delete_files_from_swift)
+
     def server_status_matches(self, expected_status, server=None):
         if not server:
             server = self.server
@@ -1192,7 +1227,7 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                   self.id)
         return self.guest.backup_required_for_replication()
 
-    def get_replication_snapshot(self, snapshot_info, flavor):
+    def get_replication_snapshot(self, snapshot_info, flavor, quota=True):
 
         def _get_replication_snapshot():
             LOG.debug("Calling get_replication_snapshot on %s.", self.id)
@@ -1207,8 +1242,10 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                               % self.id)
                 raise
 
-        return run_with_quotas(self.context.tenant, {'backups': 1},
-                               _get_replication_snapshot)
+        if quota:
+            return run_with_quotas(self.context.tenant, {'backups': 1},
+                                   _get_replication_snapshot)
+        return _get_replication_snapshot()
 
     def detach_replica(self, master, for_failover=False):
         LOG.debug("Calling detach_replica on %s" % self.id)
@@ -1363,6 +1400,17 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
         finally:
             self.reset_task_status()
 
+    def guest_log_publish_status(self, log_name):
+        LOG.info(_("Retrieving guest log publish status for instance %s.") %
+                 self.id)
+        try:
+            return self.guest.guest_log_publish_status(log_name)
+        except GuestError:
+            LOG.error(_("Failed to retrieve guest log publish status for "
+                        "instance %s.") % self.id)
+        finally:
+            self.reset_task_status()
+
     def guest_log_action(self, log_name, enable, disable, publish, discard):
         LOG.info(_("Processing guest log for instance %s.") % self.id)
         try:
@@ -1464,21 +1512,32 @@ class BackupTasks(object):
         return container, prefix
 
     @classmethod
-    def delete_files_from_swift(cls, context, filename):
-        container = CONF.backup_swift_container
+    def delete_files_from_swift(cls, context, filename, tenant):
+        container = '%(prefix)s_%(tenant)s' % {
+            'prefix': CONF.backup_swift_container_prefix,
+            'tenant': tenant
+        }
         client = remote.create_swift_client(context)
         obj = client.head_object(container, filename)
-        if 'x-static-large-object' in obj:
-            # Static large object
-            LOG.debug("Deleting large object file: %(cont)s/%(filename)s" %
-                      {'cont': container, 'filename': filename})
-            client.delete_object(container, filename,
-                                 query_string='multipart-manifest=delete')
-        else:
-            # Single object
-            LOG.debug("Deleting object file: %(cont)s/%(filename)s" %
-                      {'cont': container, 'filename': filename})
-            client.delete_object(container, filename)
+        manifest = obj.get('x-object-manifest', '')
+        cont, prefix = cls._parse_manifest(manifest)
+        if all([cont, prefix]):
+            # This is a manifest file, first delete all segments.
+            LOG.debug("Deleting files with prefix: %(cont)s/%(prefix)s" %
+                      {'cont': cont, 'prefix': prefix})
+            # list files from container/prefix specified by manifest
+            headers, segments = client.get_container(cont, prefix=prefix)
+            LOG.debug(headers)
+            for segment in segments:
+                name = segment.get('name')
+                if name:
+                    LOG.debug("Deleting file: %(cont)s/%(name)s" %
+                              {'cont': cont, 'name': name})
+                    client.delete_object(cont, name)
+        # Delete the manifest file
+        LOG.debug("Deleting file: %(cont)s/%(filename)s" %
+                  {'cont': cont, 'filename': filename})
+        client.delete_object(container, filename)
 
     @classmethod
     def delete_backup(cls, context, backup_id):
@@ -1487,8 +1546,9 @@ class BackupTasks(object):
         backup = bkup_models.Backup.get_by_id(context, backup_id)
         try:
             filename = backup.filename
-            if filename:
-                BackupTasks.delete_files_from_swift(context, filename)
+            tenant = backup.tenant_id
+            if filename and tenant:
+                BackupTasks.delete_files_from_swift(context, filename, tenant)
         except ValueError:
             backup.delete()
         except ClientException as e:

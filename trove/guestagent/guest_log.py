@@ -14,6 +14,7 @@
 
 from datetime import datetime
 import enum
+import eventlet
 import hashlib
 import os
 from requests.exceptions import ConnectionError
@@ -26,12 +27,39 @@ from trove.common import exception
 from trove.common.i18n import _
 from trove.common.remote import create_swift_client
 from trove.common import stream_codecs
+from trove.common.utils import is_valid_origins
 from trove.guestagent.common import operating_system
 from trove.guestagent.common.operating_system import FileMode
+
+from trove.common.notification import (
+    StartNotification,
+    DBaaSAPINotification)
 
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
+
+
+class DBaaSLogPublish(DBaaSAPINotification):
+
+    server_type = 'guest'
+
+    def event_type(self):
+        return 'log_publish'
+
+    def required_base_traits(self):
+        return ['tenant_id', 'server_type', 'request_id', 'instance_id',
+                'log_name']
+
+    def required_start_traits(self):
+        return []
+
+
+class StartLogPublishNotification(StartNotification):
+
+    @property
+    def _notifier(self):
+        return self.context.notification
 
 
 class LogType(enum.Enum):
@@ -86,8 +114,9 @@ class GuestLog(object):
     MF_LABEL_LOG_SIZE = 'log_size'
     MF_LABEL_LOG_HEADER = 'log_header_digest'
 
-    def __init__(self, log_context, log_name, log_type, log_user, log_file,
-                 log_exposed):
+    def __init__(self, guest_manager, log_context, log_name, log_type,
+                 log_user, log_file, log_exposed):
+        self._guest_manager = guest_manager
         self._context = log_context
         self._name = log_name
         self._type = log_type
@@ -105,6 +134,10 @@ class GuestLog(object):
         self._file_readable = False
         self._container_name = None
         self._codec = stream_codecs.JsonCodec()
+        self._is_publishing = False
+        self._files_published_attime = 0
+        self.pool = eventlet.GreenPool()
+        self._partially_published = False
 
         self._set_status(self._type == LogType.USER,
                          LogStatus.Disabled, LogStatus.Enabled)
@@ -133,6 +166,15 @@ class GuestLog(object):
             self._cached_swift_client = create_swift_client(self.context)
             self._cached_context = self.context
         return self._cached_swift_client
+
+    @property
+    def tmp_log_filename(self):
+        _tmp_log_filename = '%s.tmp' % self._file
+        if not operating_system.exists(_tmp_log_filename):
+            operating_system.write_file(_tmp_log_filename, '', as_root=True)
+            operating_system.chown(_tmp_log_filename, 'trove', '',
+                                   as_root=True)
+        return _tmp_log_filename
 
     @property
     def exposed(self):
@@ -165,15 +207,20 @@ class GuestLog(object):
 
     def get_container_name(self, force=False):
         if not self._container_name or force:
-            container_name = CONF.guest_log_container_name
+            container_name = '%(prefix)s_%(tenant)s' % {
+                'prefix': CONF.guest_log_container_name_prefix,
+                'tenant': self.context.tenant
+            }
             try:
                 self.swift_client.get_container(container_name, prefix='dummy')
             except ClientException as ex:
                 if ex.http_status == 404:
                     LOG.debug("Container '%s' not found; creating now" %
                               container_name)
+                    headers = self._get_headers()
+                    self._headers_append_cors(headers)
                     self.swift_client.put_container(
-                        container_name, headers=self._get_headers())
+                        container_name, headers=headers)
                 else:
                     LOG.exception(_("Could not retrieve container '%s'") %
                                   container_name)
@@ -195,9 +242,7 @@ class GuestLog(object):
             if self._published_size:
                 container_name = self.get_container_name()
                 prefix = self._object_prefix()
-            pending = self._size - self._published_size
-            if self.status == LogStatus.Rotated:
-                pending = self._size
+            pending = self._size
             return {
                 'name': self._name,
                 'type': self._type.name,
@@ -211,6 +256,13 @@ class GuestLog(object):
         else:
             raise exception.UnauthorizedRequest(_(
                 "Not authorized to show log '%s'.") % self._name)
+
+    def log_publish_status(self):
+        return {
+            'is_publishing': self._is_publishing,
+            'name': self._name,
+            'files_published_attime': self._files_published_attime
+        }
 
     def _refresh_details(self):
 
@@ -255,14 +307,12 @@ class GuestLog(object):
             self._size = logstat.st_size
             self._update_log_header_digest(self._file)
 
-            if self._log_rotated():
-                self.status = LogStatus.Rotated
             # See if we have stuff to publish
-            elif logstat.st_size > self._published_size:
+            if logstat.st_size > 0:
                 self._set_status(self._published_size,
                                  LogStatus.Partial, LogStatus.Ready)
             # We've published everything so far
-            elif logstat.st_size == self._published_size:
+            elif logstat.st_size == 0:
                 self._set_status(self._published_size,
                                  LogStatus.Published, LogStatus.Enabled)
             # We've already handled this case (log rotated) so what gives?
@@ -272,7 +322,7 @@ class GuestLog(object):
             self._published_size = 0
             self._size = 0
 
-        if not self._size or not self.enabled:
+        if not os.path.isfile(self._file) or not self.enabled:
             user_status = LogStatus.Disabled
             if self.enabled:
                 user_status = LogStatus.Enabled
@@ -296,19 +346,58 @@ class GuestLog(object):
     def _get_headers(self):
         return {'X-Delete-After': str(CONF.guest_log_expiry)}
 
+    def _headers_append_cors(self, headers):
+        allow_origins = CONF.swift_container_allowed_origins
+        if is_valid_origins(allow_origins):
+            cors_headers = {
+                'X-Container-Meta-Access-Control-Allow-Origin': (
+                    str(allow_origins)),
+                'X-Container-Meta-Access-Control-Allow-Headers': 'X-Auth-Token'
+            }
+            headers.update(cors_headers)
+
+    def _clear_local_log(self):
+        if not self._partially_published:
+            operating_system.write_file(self._file, '', as_root=True)
+            operating_system.remove(self.tmp_log_filename, force=True,
+                                    as_root=True)
+        else:
+            self._guest_manager.recreate_log_file(self._file,
+                                                  self.tmp_log_filename)
+
+    def _publish_log(self):
+        payload = {
+            'request_id': self.context.request_id,
+            'tenant_id': self.context.tenant,
+            'instance_id': CONF.guest_id,
+            'server_type': 'guest',
+            'log_name': self._name
+        }
+        self.context.notification = DBaaSLogPublish(self.context, **payload)
+        with StartLogPublishNotification(self.context):
+            self._files_published_attime = 0
+            self._publish_to_container(self._file)
+            self._clear_local_log()
+            self._partially_published = False
+            self._is_publishing = False
+
     def publish_log(self):
+        if self._is_publishing:
+            raise exception.TroveError(_(
+                "Cannot publish log file '%s' as it's publishing.") %
+                self._file)
         if self.exposed:
-            if self._log_rotated():
-                LOG.debug("Log file rotation detected for '%s' - "
-                          "discarding old log" % self._name)
-                self._delete_log_components()
             if os.path.isfile(self._file):
-                self._publish_to_container(self._file)
+                self.pool.spawn_n(self._publish_log)
             else:
                 raise RuntimeError(_(
                     "Cannot publish log file '%s' as it does not exist.") %
                     self._file)
-            return self.show()
+            return {
+                'name': self._name,
+                'type': self._type.name,
+                'metafile': self._metafile_name()
+            }
         else:
             raise exception.UnauthorizedRequest(_(
                 "Not authorized to publish log '%s'.") % self._name)
@@ -338,6 +427,8 @@ class GuestLog(object):
         log_component, log_lines = '', 0
         chunk_size = CONF.guest_log_limit
         container_name = self.get_container_name(force=True)
+        self._is_publishing = True
+        tmp = open(self.tmp_log_filename, 'a+')
 
         def _read_chunk(f):
             while True:
@@ -347,22 +438,30 @@ class GuestLog(object):
                 yield current_chunk
 
         def _write_log_component():
-            object_headers.update({'x-object-meta-lines': str(log_lines)})
-            component_name = '%s%s' % (self._object_prefix(),
-                                       self._object_name())
-            self.swift_client.put_object(container_name,
-                                         component_name, log_component,
-                                         headers=object_headers)
-            self._published_size = (
-                self._published_size + len(log_component))
-            self._published_header_digest = self._header_digest
+            if not self._partially_published:
+                object_headers.update({'x-object-meta-lines': str(log_lines)})
+                component_name = '%s%s' % (self._object_prefix(),
+                                           self._object_name())
+                try:
+                    self.swift_client.put_object(container_name,
+                                                 component_name, log_component,
+                                                 headers=object_headers)
+                    self._published_size = (
+                        self._published_size + len(log_component))
+                    self._published_header_digest = self._header_digest
+                    self._files_published_attime += 1
+                    self._put_meta_details()
+                except Exception as ex:
+                    self._partially_published = True
+                    tmp.write(log_component)
+                    LOG.exception(_('Log partially published: %s') % ex)
+            else:
+                tmp.write(log_component)
 
         self._refresh_details()
         self._put_meta_details()
         object_headers = self._get_headers()
         with open(log_filename, 'r') as log:
-            LOG.debug("seeking to %s", self._published_size)
-            log.seek(self._published_size)
             for chunk in _read_chunk(log):
                 for log_line in chunk.splitlines():
                     if len(log_component) + len(log_line) > chunk_size:
@@ -372,7 +471,8 @@ class GuestLog(object):
                     log_lines += 1
         if log_lines > 0:
             _write_log_component()
-        self._put_meta_details()
+
+        tmp.close()
 
     def _put_meta_details(self):
         metafile_name = self._metafile_name()

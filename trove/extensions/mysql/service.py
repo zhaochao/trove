@@ -85,7 +85,7 @@ class UserController(wsgi.Controller):
                 model_users = populate_users(users)
                 models.User.create(context, instance_id, model_users)
             except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
+                raise exception.BadRequest(message=str(e))
         return wsgi.Result(None, 202)
 
     def delete(self, req, tenant_id, instance_id, id):
@@ -109,7 +109,7 @@ class UserController(wsgi.Controller):
                 if not found_user:
                     user = None
             except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
+                raise exception.BadRequest(message=str(e))
             if not user:
                 raise exception.UserNotFound(uuid=id)
             models.User.delete(context, instance_id, user.serialize())
@@ -127,7 +127,7 @@ class UserController(wsgi.Controller):
         try:
             user = models.User.load(context, instance_id, username, host)
         except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
+            raise exception.BadRequest(message=str(e))
         if not user:
             raise exception.UserNotFound(uuid=id)
         view = views.UserView(user)
@@ -151,14 +151,14 @@ class UserController(wsgi.Controller):
                 user = models.User.load(context, instance_id, username,
                                         hostname)
             except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
+                raise exception.BadRequest(message=str(e))
             if not user:
                 raise exception.UserNotFound(uuid=id)
             try:
                 models.User.update_attributes(context, instance_id, username,
                                               hostname, user_attrs)
             except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
+                raise exception.BadRequest(message=str(e))
         return wsgi.Result(None, 202)
 
     def update_all(self, req, body, tenant_id, instance_id):
@@ -189,7 +189,7 @@ class UserController(wsgi.Controller):
                         raise exception.UserNotFound(uuid=user_and_host)
                     model_users.append(mu)
                 except (ValueError, AttributeError) as e:
-                    raise exception.BadRequest(msg=str(e))
+                    raise exception.BadRequest(message=str(e))
             models.User.change_password(context, instance_id, model_users)
         return wsgi.Result(None, 202)
 
@@ -210,7 +210,7 @@ class UserAccessController(wsgi.Controller):
         try:
             user = models.User.load(context, instance_id, username, hostname)
         except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
+            raise exception.BadRequest(message=str(e))
         if not user:
             raise exception.UserNotFound(uuid=user_id)
         return user
@@ -326,19 +326,12 @@ class SchemaController(wsgi.Controller):
             try:
                 schema = guest_models.ValidatedMySQLDatabase()
                 schema.name = id
+                if not models.Schemas.find(context, instance_id, id):
+                    raise exception.DatabaseNotFound(uuid=id)
                 models.Schema.delete(context, instance_id, schema.serialize())
             except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
+                raise exception.BadRequest(message=str(e))
         return wsgi.Result(None, 202)
 
     def show(self, req, tenant_id, instance_id, id):
         raise webob.exc.HTTPNotImplemented()
-
-
-class MySQLRootController(DefaultRootController):
-
-    def _find_root_user(self, context, instance_id):
-        user = guest_models.MySQLRootUser()
-        return models.User.load(context, instance_id,
-                                user.name, user.host,
-                                root_user=True)

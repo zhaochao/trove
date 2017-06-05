@@ -37,6 +37,20 @@ non_empty_string = {
     "pattern": "^.*[0-9a-zA-Z]+.*$"
 }
 
+non_empty_utf8_name = {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 255,
+    "pattern": "^\S+$"
+}
+
+non_empty_utf8_desc = {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 255,
+    "pattern": "^\S+.*$"
+}
+
 configuration_data_types = {
     "type": "string",
     "minLength": 1,
@@ -327,7 +341,7 @@ instance = {
                 "required": ["name", "flavorRef"],
                 "additionalProperties": True,
                 "properties": {
-                    "name": non_empty_string,
+                    "name": non_empty_utf8_name,
                     "configuration_id": configuration_id,
                     "flavorRef": flavorref,
                     "volume": volume,
@@ -369,7 +383,7 @@ instance = {
                 "properties": {
                     "slave_of": {},
                     "replica_of": {},
-                    "name": non_empty_string,
+                    "name": non_empty_utf8_name,
                     "configuration": configuration_id,
                     "datastore_version": non_empty_string,
                 }
@@ -523,9 +537,9 @@ backup = {
                 "type": "object",
                 "required": ["instance", "name"],
                 "properties": {
-                    "description": non_empty_string,
+                    "description": non_empty_utf8_desc,
                     "instance": uuid,
-                    "name": non_empty_string,
+                    "name": non_empty_utf8_name,
                     "parent_id": uuid,
                     "incremental": boolean_string
                 }
@@ -648,11 +662,11 @@ configuration = {
                 "type": "object",
                 "required": ["values", "name"],
                 "properties": {
-                    "description": non_empty_string,
+                    "description": non_empty_utf8_desc,
                     "values": {
                         "type": "object",
                     },
-                    "name": non_empty_string,
+                    "name": non_empty_utf8_name,
                     "datastore": {
                         "type": "object",
                         "additionalProperties": True,
@@ -674,11 +688,11 @@ configuration = {
                 "type": "object",
                 "required": [],
                 "properties": {
-                    "description": non_empty_string,
+                    "description": non_empty_utf8_desc,
                     "values": {
                         "type": "object",
                     },
-                    "name": non_empty_string
+                    "name": non_empty_utf8_name
                 }
             }
         }

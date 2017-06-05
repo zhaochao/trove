@@ -226,6 +226,8 @@ class MySqlManager(manager.Manager):
             # will be changed based on the config template
             # (see MySqlApp.secure()) and restart.
             app.set_data_dir(mount_point + '/data')
+            prepare_conf = app.configuration_manager.parse_configuration()
+            app.configuration_manager.save_configuration(prepare_conf)
             app.start_mysql()
         if backup_info:
             self._perform_restore(backup_info, context,
@@ -432,3 +434,13 @@ class MySqlManager(manager.Manager):
         LOG.debug("Demoting replication master.")
         app = self.mysql_app(self.mysql_app_status.get())
         self.replication.demote_master(app)
+
+    def guest_log_flush(self, context):
+        LOG.debug("Flush mysql log.")
+        app = self.mysql_app(self.mysql_app_status.get())
+        app.guest_log_flush()
+
+    def recreate_log_file(self, log_file, tmp_file):
+        LOG.debug("Recreate mysql log.")
+        app = self.mysql_app(self.mysql_app_status.get())
+        app.recreate_log_file(log_file, tmp_file)
