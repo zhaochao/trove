@@ -118,11 +118,6 @@
             "type": "integer"
         },
         {
-            "name": "requirepass",
-            "restart_required": false,
-            "type": "string"
-        },
-        {
             "name": "maxclients",
             "restart_required": false,
             "min": 0,

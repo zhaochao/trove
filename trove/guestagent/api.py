@@ -178,6 +178,13 @@ class API(object):
                                                  'instance_id': self.id})
         self._cast("delete_database", self.version_cap, database=database)
 
+    def get_root_password(self):
+        """Make a synchronous call to get auth password of instance.
+        """
+        LOG.debug("Get auth password of instance %s.", self.id)
+        return self._call("get_root_password", AGENT_HIGH_TIMEOUT,
+                          self.version_cap)
+
     def enable_root(self):
         """Make a synchronous call to enable the root user for
            access from anywhere

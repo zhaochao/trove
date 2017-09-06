@@ -32,12 +32,14 @@ from trove.guestagent.common import operating_system
 from trove.guestagent.datastore.experimental.redis import system
 from trove.guestagent.datastore import service
 from trove.guestagent import pkg
+from trove.guestagent.db import models
 
 LOG = logging.getLogger(__name__)
 TIME_OUT = 1200
 CONF = cfg.CONF
 CLUSTER_CFG = 'clustering'
 REBUILT_NEEDED_CONFIGS = [u'requirepass', ]
+SYS_OVERRIDES_AUTH = 'auth_password'
 packager = pkg.Package()
 
 
@@ -403,6 +405,32 @@ class RedisApp(object):
                                            'forget', node_id)
         except exception.ProcessExecutionError:
             LOG.exception(_('Error removing node from cluster.'))
+            raise
+
+    def enable_root(self, password=None):
+        if not password:
+            LOG.debug('Generating random authentication password')
+            password = utils.generate_random_password()
+        redis_password = models.RedisRootUser(password=password)
+        try:
+            self.configuration_manager.apply_system_override(
+                {'requirepass': password, 'masterauth': password},
+                change_id=SYS_OVERRIDES_AUTH)
+            self.apply_overrides(
+                self.admin, {'requirepass': password, 'masterauth': password})
+        except exception.TroveError:
+            LOG.exception(_('Error enabling authentication for instance.'))
+            raise
+        return redis_password.serialize()
+
+    def disable_root(self):
+        try:
+            self.configuration_manager.remove_system_override(
+                change_id=SYS_OVERRIDES_AUTH)
+            self.apply_overrides(self.admin,
+                                 {'requirepass': '', 'masterauth': ''})
+        except exception.TroveError:
+            LOG.exception(_('Error disabling authentication for instance.'))
             raise
 
 

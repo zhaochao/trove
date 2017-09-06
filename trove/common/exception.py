@@ -622,3 +622,9 @@ class ImageNotFound(NotFound):
 class DatastoreVersionAlreadyExists(BadRequest):
 
     message = _("A datastore version with the name '%(name)s' already exists.")
+
+
+class SlaveInstanceOperationNotSupported(TroveError):
+
+    message = _("Operation not supported for instances that are slaves of a "
+                "replica.")
