@@ -108,7 +108,8 @@ class RedisApp(object):
         password = self.get_configuration_property('requirepass')
         socket = self.get_configuration_property('unixsocket')
 
-        return RedisAdmin(password=password, unix_socket_path=socket)
+        return RedisAdmin(password=password, unix_socket_path=socket,
+                          config_command=self.get_config_command_name())
 
     def install_if_needed(self, packages):
         """
@@ -222,7 +223,8 @@ class RedisApp(object):
     def get_config_command_name(self):
         """Get current name of the 'CONFIG' command.
         """
-        renamed_cmds = self.configuration_manager.get_value('rename-command')
+        renamed_cmds = self.configuration_manager.get_value(
+            'rename-command') or []
         for name_pair in renamed_cmds:
             if name_pair[0] == 'CONFIG':
                 return name_pair[1]
@@ -402,10 +404,11 @@ class RedisAdmin(object):
 
     DEFAULT_CONFIG_CMD = 'CONFIG'
 
-    def __init__(self, password=None, unix_socket_path=None):
+    def __init__(self, password=None, unix_socket_path=None,
+                 config_command=None):
         self.__client = redis.StrictRedis(
             password=password, unix_socket_path=unix_socket_path)
-        self.__config_cmd_name = self.DEFAULT_CONFIG_CMD
+        self.__config_cmd_name = config_command or self.DEFAULT_CONFIG_CMD
 
     def set_config_command_name(self, name):
         """Set name of the 'CONFIG' command or None for default.
