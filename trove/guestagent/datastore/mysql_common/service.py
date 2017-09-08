@@ -550,6 +550,30 @@ class BaseMySqlAdmin(object):
         user = self._get_user(username, hostname)
         return user.databases
 
+    def get_mysql_variables(self):
+        """Get mysql database variables."""
+        with self.local_sql_client(self.mysql_app.get_engine()) as client:
+            data_list = client.execute('show global variables;')
+            data_dict = dict(data_list.__iter__())
+
+        return data_dict
+
+    def get_mysql_status(self):
+        """Get mysql database status."""
+        with self.local_sql_client(self.mysql_app.get_engine()) as client:
+            data_list = client.execute('show global status;')
+            data_dict = dict(data_list.__iter__())
+
+        return data_dict
+
+    def get_slave_status(self):
+        """Get mysql database slave status."""
+        with self.local_sql_client(self.mysql_app.get_engine()) as client:
+            data_list = client.execute('show slave status;')
+            data_dict = dict(data_list.__iter__())
+
+        return data_dict
+
 
 class BaseKeepAliveConnection(interfaces.PoolListener):
     """

@@ -519,3 +519,30 @@ class InstanceController(wsgi.Controller):
         if instance_module:
             module_models.InstanceModule.delete(context, instance_module)
         return wsgi.Result(None, 200)
+
+    def guest_eayun_monitor_update(self, req, id, body, tenant_id):
+        """Modify eayun_monitor for an instance."""
+        LOG.debug("req: %s", req)
+        LOG.debug("body: %s", body)
+        if not (body or isinstance(body, dict)):
+            raise exception.BadRequest(_("Invalid request body."))
+        enabled = body.get('enabled')
+        if enabled and not isinstance(enabled, bool):
+            raise exception.BadRequest(_("enabled must be bool."))
+        measure_interval = body.get('measure_interval')
+        if measure_interval and (not isinstance(measure_interval, int) or
+                                 measure_interval < 0):
+            raise exception.BadRequest(_(
+                "measure_interval must be int and greater than 0."))
+        report_interval = body.get('report_interval')
+        if report_interval and (not isinstance(report_interval, int) or
+                                report_interval < 0):
+            raise exception.BadRequest(_(
+                "report_interval must be int and greater than 0."))
+        context = req.environ[wsgi.CONTEXT_KEY]
+        instance = models.Instance.load(context, id)
+        if not instance:
+            raise exception.NotFound(uuid=id)
+        client = create_guest_client(context, id)
+        client.guest_eayun_monitor_update(body)
+        return wsgi.Result(None, 202)

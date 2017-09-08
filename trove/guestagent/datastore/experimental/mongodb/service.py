@@ -29,6 +29,7 @@ from trove.guestagent.common.configuration import ConfigurationManager
 from trove.guestagent.common.configuration import OneFileOverrideStrategy
 from trove.guestagent.common import guestagent_utils
 from trove.guestagent.common import operating_system
+from trove.guestagent.datastore.experimental.mongodb import meteringapp
 from trove.guestagent.datastore.experimental.mongodb import system
 from trove.guestagent.datastore import service
 from trove.guestagent.db import models
@@ -64,6 +65,7 @@ class MongoDBApp(object):
         self.is_query_router = False
         self.is_cluster_member = False
         self.status = MongoDBAppStatus()
+        self.metering = meteringapp.MongoMeteringApp(MongoDBAdmin)
 
     def install_if_needed(self, packages):
         """Prepare the guest machine with a MongoDB installation."""
@@ -774,6 +776,11 @@ class MongoDBAdmin(object):
         """Get a list of shards active in this cluster."""
         with MongoDBClient(self._admin_user()) as admin_client:
             return [shard for shard in admin_client.config.shards.find()]
+
+    def server_status(self):
+        """"Get the database serverstatus"""
+        with MongoDBClient(self._admin_user()) as admin_client:
+            return admin_client.admin.command('serverStatus')
 
 
 class MongoDBClient(object):

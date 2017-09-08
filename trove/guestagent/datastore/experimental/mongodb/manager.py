@@ -43,6 +43,10 @@ class Manager(manager.Manager):
         return self.app.status
 
     @property
+    def metering(self):
+        return self.app.metering
+
+    @property
     def configuration_manager(self):
         return self.app.configuration_manager
 

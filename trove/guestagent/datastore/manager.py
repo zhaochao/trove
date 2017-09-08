@@ -15,19 +15,25 @@
 #
 
 import abc
+import time
+import ConfigParser
 
 from oslo_config import cfg as oslo_cfg
 from oslo_log import log as logging
 from oslo_service import periodic_task
+from oslo_service import loopingcall
 from oslo_utils import encodeutils
 
+from trove import rpc
 from trove.common import cfg
 from trove.common import exception
 from trove.common.i18n import _
 from trove.common import instance
 from trove.common.notification import EndNotification
+from trove.common import context as trove_context
 from trove.guestagent.common import guestagent_utils
 from trove.guestagent.common import operating_system
+from trove.guestagent.common import timeutils
 from trove.guestagent.common.operating_system import FileMode
 from trove.guestagent import dbaas
 from trove.guestagent import guest_log
@@ -39,6 +45,7 @@ from trove.guestagent import volume
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
+FILEPATH = '/etc/trove/trove-guestagent-monitoring.ini'
 
 
 class Manager(periodic_task.PeriodicTasks):
@@ -78,6 +85,25 @@ class Manager(periodic_task.PeriodicTasks):
 
         # Module
         self.module_driver_manager = driver_manager.ModuleDriverManager()
+
+        # Looping task
+        self.last_measure = 0
+        self.last_report = 0
+        self.metering_data = {}
+        self.eayun_monitor_enabled = CONF.eayun_monitor.enabled
+        if self.eayun_monitor_enabled:
+            self.metering_loop_task = loopingcall.FixedIntervalLoopingCall(
+                self.metering_loop
+            )
+            self.measure_interval = CONF.eayun_monitor.measure_interval
+            self.metering_loop_task.start(interval=self.measure_interval)
+            self.metering_notification_task = \
+                loopingcall.FixedIntervalLoopingCall(
+                    self.metering_notification
+                )
+            self.report_interval = CONF.eayun_monitor.report_interval
+            self.metering_notification_task.start(
+                interval=self.report_interval)
 
     @property
     def manager_name(self):
@@ -883,3 +909,92 @@ class Manager(periodic_task.PeriodicTasks):
         LOG.debug("Demoting replication master.")
         raise exception.DatastoreOperationNotSupported(
             operation='demote_replication_master', datastore=self.manager)
+
+    def metering_loop(self):
+        LOG.debug("Polling monitoring database.")
+        resource_id = CONF.guest_id
+        tenant_id = CONF.tenant_id
+        timestamp = timeutils.float_utcnow()
+        counter = self.metering.get_counter()
+        self.metering_data = {'resource_id': resource_id,
+                              'tenant_id': tenant_id,
+                              'server_type': self.metering.server_type,
+                              'timestamp': timestamp,
+                              'counter': counter}
+
+        ts = int(time.time())
+        measure_delta = ts - self.last_measure
+        self.last_measure = ts
+        LOG.debug(_("The measure_delta is: %s"), measure_delta)
+
+    def metering_notification(self):
+        ts = int(time.time())
+        report_delta = ts - self.last_report
+        LOG.debug(_("The report_delta is: %s"), report_delta)
+        context = trove_context.TroveContext()
+        LOG.debug(_("Send metering report: %s"), self.metering_data)
+        notifier = rpc.get_notifier('metering')
+        notifier.info(context, 'trove_database.meter', self.metering_data)
+        self.last_report = ts
+
+    def guest_eayun_monitor_update(self, context, configuration=None):
+        """This method is to modify the configuration, and restart
+        the metering_loop and the metering_notification.
+        """
+        update_success = False
+        config = ConfigParser.ConfigParser()
+        config.readfp(open(FILEPATH, "r"))
+        for option, value in configuration.iteritems():
+            if not config.has_option('eayun_monitor', option):
+                continue
+            elif config.get('eayun_monitor', option, True) != value:
+                config.set('eayun_monitor', option, value)
+                update_success = True
+
+        if update_success is True:
+            self.eayun_monitor_enabled = config.get('eayun_monitor',
+                                                    'enabled',
+                                                    True)
+            measure_interval = config.get('eayun_monitor',
+                                          'measure_interval',
+                                          True)
+            report_interval = config.get('eayun_monitor',
+                                         'report_interval',
+                                         True)
+            config.write(open(FILEPATH, "w"))
+
+            if self.eayun_monitor_enabled is False:
+                self.metering_notification_task.stop()
+                self.metering_notification_task.stop()
+            else:
+                def calc_initial_delay(last_time, old_interval):
+                    ts = int(time.time())
+                    delta = ts - last_time
+                    initial_delay = old_interval - delta
+                    if initial_delay < 0:
+                        initial_delay = 0
+                    return initial_delay
+                if self.measure_interval != measure_interval:
+                    initial_delay = calc_initial_delay(self.last_measure,
+                                                       self.measure_interval)
+                    self.measure_interval = measure_interval
+                    self.metering_loop_task.stop()
+                    self.metering_loop_task = \
+                        loopingcall.FixedIntervalLoopingCall(
+                            self.metering_loop
+                        )
+                    self.metering_loop_task.start(interval=measure_interval,
+                                                  initial_delay=initial_delay)
+
+                if self.report_interval != report_interval:
+                    initial_delay = calc_initial_delay(self.last_report,
+                                                       self.report_interval)
+                    self.report_interval = report_interval
+                    self.metering_notification_task.stop()
+                    self.metering_notification_task = \
+                        loopingcall.FixedIntervalLoopingCall(
+                            self.metering_notification
+                        )
+                    self.metering_notification_task.start(
+                        interval=measure_interval,
+                        initial_delay=initial_delay)

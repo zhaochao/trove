@@ -29,6 +29,7 @@ from trove.guestagent.common.configuration import ConfigurationManager
 from trove.guestagent.common.configuration import OneFileOverrideStrategy
 from trove.guestagent.common import guestagent_utils
 from trove.guestagent.common import operating_system
+from trove.guestagent.datastore.experimental.redis import meteringapp
 from trove.guestagent.datastore.experimental.redis import system
 from trove.guestagent.datastore import service
 from trove.guestagent import pkg
@@ -106,6 +107,7 @@ class RedisApp(object):
 
         self.admin = self._build_admin_client()
         self.status = RedisAppStatus(self.admin)
+        self.metering = meteringapp.RedisMeteringApp(self.admin)
 
     def _build_admin_client(self):
         password = self.get_configuration_property('requirepass')
@@ -117,6 +119,7 @@ class RedisApp(object):
     def _rebuild_admin_client(self):
         self.admin = self._build_admin_client()
         self.status.set_client(self.admin)
+        self.metering.set_client(self.admin)
 
     def install_if_needed(self, packages):
         """

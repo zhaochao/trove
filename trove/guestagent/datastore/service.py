@@ -379,3 +379,12 @@ class BaseDbStatus(object):
         LOG.debug("Casting report_root message to conductor.")
         conductor_api.API(context).report_root(CONF.guest_id, user)
         LOG.debug("Successfully cast report_root.")
+
+
+class MeteringApp(object):
+    """
+        This is a base class to define the 'server_type'field and the
+    method get_counter, subclasses must implement real logic.
+    """
+
+    server_type = None

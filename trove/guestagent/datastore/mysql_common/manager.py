@@ -29,6 +29,7 @@ from trove.common.notification import EndNotification
 from trove.guestagent import backup
 from trove.guestagent.common import operating_system
 from trove.guestagent.datastore import manager
+from trove.guestagent.datastore.mysql_common import meteringapp
 from trove.guestagent.datastore.mysql_common import service
 from trove.guestagent import guest_log
 from trove.guestagent import volume
@@ -43,12 +44,17 @@ class MySqlManager(manager.Manager):
     def __init__(self, mysql_app, mysql_app_status, mysql_admin,
                  manager_name='mysql'):
 
-        super(MySqlManager, self).__init__(manager_name)
         self._mysql_app = mysql_app
         self._mysql_app_status = mysql_app_status
         self._mysql_admin = mysql_admin
+        self._metering = meteringapp.MysqlMeteringApp(self.mysql_admin)
+        super(MySqlManager, self).__init__(manager_name)
 
         self.volume_do_not_start_on_reboot = False
+
+    @property
+    def metering(self):
+        return self._metering
 
     @property
     def mysql_app(self):

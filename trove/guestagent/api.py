@@ -487,3 +487,8 @@ class API(object):
         LOG.debug("Removing modules from %s.", self.id)
         return self._call("module_remove", AGENT_HIGH_TIMEOUT,
                           self.version_cap, module=module)
+
+    def guest_eayun_monitor_update(self, configuration):
+        LOG.debug("Modify eayun_monitor with %s.", configuration)
+        return self._call("guest_eayun_monitor_update", AGENT_LOW_TIMEOUT,
+                          self.version_cap, configuration=configuration)
