@@ -1208,13 +1208,16 @@ class Instance(BuiltInstance):
 
         # check if the instance is not ACTIVE or has tasks
         status = None
+        status_type = 'server'
         if self.db_info.server_status != InstanceStatus.ACTIVE:
             status = self.db_info.server_status
         elif self.db_info.task_status != InstanceTasks.NONE:
+            status_type = 'task'
             status = self.db_info.task_status.action
 
         if status:
             raise exception.InvalidInstanceState(instance_id=self.id,
+                                                 status_type=status_type,
                                                  status=status)
 
     def unassign_configuration(self):
