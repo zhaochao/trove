@@ -95,19 +95,23 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
             LOG.debug("members: %s" %
                       [instance.id for instance in members])
 
-            # for config_server in config_servers, append ip/hostname to
-            # "config_server_hosts", then
-            # peel off the replica-set name and ip/hostname from 'x'
-            config_server_ips = [self.get_ip(instance)
-                                 for instance in config_servers]
-            LOG.debug("config server ips: %s" % config_server_ips)
+            if query_routers and config_servers:
+                # for config_server in config_servers, append ip/hostname to
+                # "config_server_hosts", then
+                # peel off the replica-set name and ip/hostname from 'x'
+                config_server_ips = [self.get_ip(instance)
+                                     for instance in config_servers]
+                LOG.debug("config server ips: %s" % config_server_ips)
 
-            if not self._add_query_routers(query_routers,
-                                           config_server_ips):
-                return
+                if not self._add_query_routers(query_routers,
+                                               config_server_ips):
+                    return
 
-            if not self._create_shard(query_routers[0], members):
-                return
+                if not self._create_shard(query_routers[0], members):
+                    return
+            else:
+                if not self._create_replica_set(members):
+                    return
 
             # call to start checking status
             for instance in instances:
@@ -332,6 +336,20 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
                                             shard_id=primary_member.shard_id)
             return False
         return True
+
+    def _create_replica_set(self, members):
+        """Create a replica_set cluster by the given member instances"""
+        primary_member = members[0]
+        other_members = members[1:]
+        '''
+        we dont need query_router,
+        so we dont need to add replica_set to query_router as a shard
+        '''
+        if not self._init_replica_set(primary_member, other_members):
+            return False
+        replica_set = self.get_guest(primary_member).get_replica_set_name()
+        LOG.debug('creating replica set %s as cluster %s'
+                  % (replica_set, self.id))
 
     def _get_running_query_router_id(self):
         """Get a query router in this cluster that is in the RUNNING state."""

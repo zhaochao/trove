@@ -41,6 +41,8 @@ CONF = cfg.CONF
 
 class MongoDbAPIStrategy(base.BaseAPIStrategy):
 
+    support_cluster_type = True
+
     @property
     def cluster_class(self):
         return MongoDbCluster
@@ -58,15 +60,17 @@ class MongoDbCluster(models.Cluster):
 
     @classmethod
     def create(cls, context, name, datastore, datastore_version,
-               instances, extended_properties, locality):
+               instances, extended_properties, locality, cluster_type):
 
         # TODO(amcreynolds): consider moving into CONF and even supporting
         # TODO(amcreynolds): an array of values, e.g. [3, 5, 7]
         # TODO(amcreynolds): or introduce a min/max num_instances and set
         # TODO(amcreynolds): both to 3
         num_instances = len(instances)
-        if num_instances != 3:
-            raise exception.ClusterNumInstancesNotSupported(num_instances=3)
+        instances_list = [3, 5, 7]
+        if num_instances not in instances_list:
+            numi = "3 or 5 or 7"
+            raise exception.ClusterNumInstancesNotSupported(num_instances=numi)
 
         flavor_ids = [instance['flavor_id'] for instance in instances]
         if len(set(flavor_ids)) != 1:
@@ -127,55 +131,88 @@ class MongoDbCluster(models.Cluster):
 
         mongos_config = {"id": db_info.id,
                          "instance_type": "query_router"}
+        '''
+        create replica set mongo cluster
+        '''
+        msg = _("specified parameter cluster_type only supported replica_set")
+        if cluster_type and cluster_type != "replica_set":
+            raise exception.BadRequest(message=msg)
+        if cluster_type == "replica_set":
+            member_config = {"id": db_info.id,
+                             "instance_type": "member",
+                             "replica_set_name": replica_set_name}
+            if mongo_conf.cluster_secure:
+                cluster_key = utils.generate_random_password()
+                member_config['key'] = cluster_key
+            for i in range(0, num_instances):
+                instance_name = "%s-%s-%s" % (name,
+                                              replica_set_name,
+                                              str(i + 1))
+                modules_i = instances[i].get('modules')
+                inst_models.Instance.create(context, instance_name,
+                                            flavor_id,
+                                            datastore_version.image_id,
+                                            [], [], datastore,
+                                            datastore_version,
+                                            volume_size, None,
+                                            availability_zone=azs[i],
+                                            nics=nics[i],
+                                            configuration_id=None,
+                                            cluster_config=member_config,
+                                            locality=locality,
+                                            modules=modules_i)
+        else:
+            if mongo_conf.cluster_secure:
+                cluster_key = utils.generate_random_password()
+                member_config['key'] = cluster_key
+                configsvr_config['key'] = cluster_key
+                mongos_config['key'] = cluster_key
 
-        if mongo_conf.cluster_secure:
-            cluster_key = utils.generate_random_password()
-            member_config['key'] = cluster_key
-            configsvr_config['key'] = cluster_key
-            mongos_config['key'] = cluster_key
+            for i in range(0, num_instances):
+                instance_name = "%s-%s-%s" % (name,
+                                              replica_set_name,
+                                              str(i + 1))
+                modules_i = instances[i].get('modules')
+                inst_models.Instance.create(context, instance_name,
+                                            flavor_id,
+                                            datastore_version.image_id,
+                                            [], [], datastore,
+                                            datastore_version,
+                                            volume_size, None,
+                                            availability_zone=azs[i],
+                                            nics=nics[i],
+                                            configuration_id=None,
+                                            cluster_config=member_config,
+                                            locality=locality,
+                                            modules=modules_i)
 
-        for i in range(0, num_instances):
-            instance_name = "%s-%s-%s" % (name, replica_set_name, str(i + 1))
-            inst_models.Instance.create(context, instance_name,
-                                        flavor_id,
-                                        datastore_version.image_id,
-                                        [], [], datastore,
-                                        datastore_version,
-                                        volume_size, None,
-                                        availability_zone=azs[i],
-                                        nics=nics[i],
-                                        configuration_id=None,
-                                        cluster_config=member_config,
-                                        locality=locality,
-                                        modules=instances[i].get('modules'))
+            for i in range(1, num_configsvr + 1):
+                instance_name = "%s-%s-%s" % (name, "configsvr", str(i))
+                inst_models.Instance.create(context, instance_name,
+                                            flavor_id,
+                                            datastore_version.image_id,
+                                            [], [], datastore,
+                                            datastore_version,
+                                            volume_size, None,
+                                            availability_zone=None,
+                                            nics=None,
+                                            configuration_id=None,
+                                            cluster_config=configsvr_config,
+                                            locality=locality)
 
-        for i in range(1, num_configsvr + 1):
-            instance_name = "%s-%s-%s" % (name, "configsvr", str(i))
-            inst_models.Instance.create(context, instance_name,
-                                        flavor_id,
-                                        datastore_version.image_id,
-                                        [], [], datastore,
-                                        datastore_version,
-                                        volume_size, None,
-                                        availability_zone=None,
-                                        nics=None,
-                                        configuration_id=None,
-                                        cluster_config=configsvr_config,
-                                        locality=locality)
-
-        for i in range(1, num_mongos + 1):
-            instance_name = "%s-%s-%s" % (name, "mongos", str(i))
-            inst_models.Instance.create(context, instance_name,
-                                        flavor_id,
-                                        datastore_version.image_id,
-                                        [], [], datastore,
-                                        datastore_version,
-                                        volume_size, None,
-                                        availability_zone=None,
-                                        nics=None,
-                                        configuration_id=None,
-                                        cluster_config=mongos_config,
-                                        locality=locality)
+            for i in range(1, num_mongos + 1):
+                instance_name = "%s-%s-%s" % (name, "mongos", str(i))
+                inst_models.Instance.create(context, instance_name,
+                                            flavor_id,
+                                            datastore_version.image_id,
+                                            [], [], datastore,
+                                            datastore_version,
+                                            volume_size, None,
+                                            availability_zone=None,
+                                            nics=None,
+                                            configuration_id=None,
+                                            cluster_config=mongos_config,
+                                            locality=locality)
 
         task_api.load(context, datastore_version.manager).create_cluster(
             db_info.id)
@@ -228,6 +265,17 @@ class MongoDbCluster(models.Cluster):
         return instance
 
     def action(self, context, req, action, param):
+        '''
+        Grow and add_shard action can not be performed on
+        cluster of replica-set type currently
+        '''
+        type_i = 'query_router'
+        query_routers = [db_inst for db_inst in self.db_instances
+                         if db_inst.type == type_i]
+        if not query_routers:
+            msg = _("This action can not be performed on the cluster"
+                    "type of replica-set only currently")
+            raise exception.BadRequest(message=msg)
         if action == 'grow':
             context.notification = DBaaSClusterGrow(context, request=req)
             with StartNotification(context, cluster_id=self.id):

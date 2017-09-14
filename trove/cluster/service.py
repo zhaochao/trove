@@ -154,6 +154,7 @@ class ClusterController(wsgi.Controller):
                 datastore_version=datastore_version.name)
 
         nodes = body['cluster']['instances']
+        cluster_type = body.get('type', default=None)
         instances = []
         for node in nodes:
             flavor_id = utils.get_id_from_href(node['flavorRef'])
@@ -193,7 +194,7 @@ class ClusterController(wsgi.Controller):
             cluster = models.Cluster.create(context, name, datastore,
                                             datastore_version, instances,
                                             extended_properties,
-                                            locality)
+                                            locality, cluster_type)
         cluster.locality = locality
         view = views.load_view(cluster, req=req, load_servers=False)
         return wsgi.Result(view.data(), 200)
