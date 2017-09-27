@@ -50,6 +50,14 @@ class Base(object):
         """
 
 
+class RedisRootUser(Base):
+
+    def __init__(self, password=None):
+        self._name = '-'
+        self._password = password
+        super(RedisRootUser, self).__init__()
+
+
 class DatastoreSchema(Base):
     """Represents a database schema."""
 
