@@ -375,11 +375,13 @@ class GuestLog(object):
         }
         self.context.notification = DBaaSLogPublish(self.context, **payload)
         with StartLogPublishNotification(self.context):
-            self._files_published_attime = 0
-            self._publish_to_container(self._file)
-            self._clear_local_log()
-            self._partially_published = False
-            self._is_publishing = False
+            try:
+                self._files_published_attime = 0
+                self._publish_to_container(self._file)
+                self._clear_local_log()
+                self._partially_published = False
+            finally:
+                self._is_publishing = False
 
     def publish_log(self):
         if self._is_publishing:
