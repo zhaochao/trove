@@ -52,6 +52,7 @@ import trove.common.remote as remote
 from trove.common.remote import create_cinder_client
 from trove.common.remote import create_dns_client
 from trove.common.remote import create_heat_client
+from trove.common.remote import create_neutron_client
 from trove.common import server_group as srv_grp
 from trove.common.strategies.cluster import strategy
 from trove.common import template
@@ -385,15 +386,24 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         # in the template definition.
         if CONF.trove_security_groups_support and not use_heat:
             try:
-                security_groups = self._create_secgroup(datastore_manager)
+                security_groups, security_id = self._create_secgroup(
+                    datastore_manager)
+                LOG.debug("Successfully created security group for "
+                          "instance: %s" % self.id)
+                if 'NeutronDriver' in CONF.network_driver:
+                    neutron_client = create_neutron_client(self.context)
+                    for nic in nics:
+                        if 'port-id' in nic:
+                            port_id = nic['port-id']
+                            body = {'port': {'security_groups': [security_id]}}
+                            neutron_client.update_port(port_id, body=body)
+                            LOG.debug("Successfully updated security group "
+                                      "for port: %s" % port_id)
             except Exception as e:
-                msg = (_("Error creating security group for instance: %s") %
+                msg = (_("Error processing security group for instance: %s") %
                        self.id)
                 err = inst_models.InstanceTasks.BUILDING_ERROR_SEC_GROUP
                 self._log_and_raise(e, msg, err)
-            else:
-                LOG.debug("Successfully created security group for "
-                          "instance: %s" % self.id)
 
         files = self.get_injected_files(datastore_manager)
         cinder_volume_type = volume_type or CONF.cinder_volume_type
@@ -1022,7 +1032,7 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         self._create_rules(security_group, udp_ports, 'udp')
         if icmp:
             self._create_rules(security_group, None, 'icmp')
-        return [security_group["name"]]
+        return [security_group["name"]], security_group['id']
 
     def _create_rules(self, s_group, ports, protocol):
         err = inst_models.InstanceTasks.BUILDING_ERROR_SEC_GROUP
