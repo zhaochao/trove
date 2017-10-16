@@ -35,6 +35,7 @@ from trove.common.remote import create_cinder_client
 from trove.common.remote import create_dns_client
 from trove.common.remote import create_guest_client
 from trove.common.remote import create_nova_client
+from trove.common.remote import create_neutron_client
 from trove.common import server_group as srv_grp
 from trove.common import template
 from trove.common import utils
@@ -601,6 +602,7 @@ class BaseInstance(SimpleInstance):
         self._guest = None
         self._nova_client = None
         self._volume_client = None
+        self._neutron_client = None
         self._server_group = None
         self._server_group_loaded = False
         self.pool = eventlet.GreenPool()
@@ -670,6 +672,12 @@ class BaseInstance(SimpleInstance):
         if not self._nova_client:
             self._nova_client = create_nova_client(self.context)
         return self._nova_client
+
+    @property
+    def neutron_client(self):
+        if not self._neutron_client:
+            self._neutron_client = create_neutron_client(self.context)
+        return self._neutron_client
 
     def update_db(self, **values):
         self.db_info = DBInstance.find_by(id=self.id, deleted=False)
