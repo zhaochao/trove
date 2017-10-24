@@ -132,6 +132,10 @@ class API(wsgi.Router):
                        controller=instance_resource,
                        action="module_remove",
                        conditions={'method': ['DELETE']})
+        mapper.connect("/{tenant_id}/instances/{id}/eayun_monitor",
+                       controller=instance_resource,
+                       action="guest_eayun_monitor_update",
+                       conditions={'method': ['PUT']})
 
     def _cluster_router(self, mapper):
         cluster_resource = ClusterController().create_resource()

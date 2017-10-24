@@ -37,12 +37,16 @@ class Manager(manager.Manager):
     """
 
     def __init__(self):
-        super(Manager, self).__init__('redis')
         self._app = service.RedisApp()
+        super(Manager, self).__init__('redis')
 
     @property
     def status(self):
         return self._app.status
+
+    @property
+    def metering(self):
+        return self._app.metering
 
     @property
     def configuration_manager(self):

@@ -37,7 +37,16 @@ guest_opts = [
                          default=None,
                          help="CORS Allowed Origins for Swift Containers.")
 ]
+monitor_opts = [
+    openstack_cfg.BoolOpt('enabled', default=True,
+                          help="The power of monitoring database."),
+    openstack_cfg.IntOpt('measure_interval', default=300,
+                         help="Interval between two metering measures."),
+    openstack_cfg.IntOpt('report_interval', default=300,
+                         help="Interval between two metering reports.")
+]
 CONF.register_opts(guest_opts)
+CONF.register_opts(monitor_opts, "eayun_monitor")
 
 
 def main():
