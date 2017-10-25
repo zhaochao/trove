@@ -244,10 +244,20 @@ class Cluster(object):
 
     @classmethod
     def create(cls, context, name, datastore, datastore_version,
-               instances, extended_properties, locality):
+               instances, extended_properties, locality, cluster_type):
         locality = srv_grp.ServerGroup.build_scheduler_hint(
             context, locality, name)
         api_strategy = strategy.load_api_strategy(datastore_version.manager)
+        '''
+        MongoDB cluster support two types:sharding, replica-set
+        '''
+        if hasattr(api_strategy, 'support_cluster_type') \
+                and api_strategy.support_cluster_type:
+            return api_strategy.cluster_class.create(context, name, datastore,
+                                                     datastore_version,
+                                                     instances,
+                                                     extended_properties,
+                                                     locality, cluster_type)
         return api_strategy.cluster_class.create(context, name, datastore,
                                                  datastore_version, instances,
                                                  extended_properties,
