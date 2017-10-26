@@ -4,12 +4,12 @@
 
 %global with_doc 0
 
-%global dist_eayunstack .eayunstack
+%global dist_eayunstack .eayunstack.dev
 
 Name:             openstack-%{service}
 Epoch:            1
 Version:          6.0.0
-Release:          3%{?dist_eayunstack}
+Release:          4%{?dist_eayunstack}
 Summary:          OpenStack DBaaS (%{service})
 
 License:          ASL 2.0
@@ -247,6 +247,7 @@ install -d -m 755 %{buildroot}%{_sysconfdir}/%{service}
 install -p -D -m 640 etc/%{service}/trove-taskmanager.conf.sample %{buildroot}%{_sysconfdir}/%{service}/trove-taskmanager.conf
 install -p -D -m 640 etc/%{service}/trove-conductor.conf.sample %{buildroot}%{_sysconfdir}/%{service}/trove-conductor.conf
 install -p -D -m 640 etc/%{service}/trove-guestagent.conf.sample %{buildroot}%{_sysconfdir}/%{service}/trove-guestagent.conf
+install -p -D -m 660 etc/%{service}/trove-guestagent-monitoring.ini %{buildroot}%{_sysconfdir}/%{service}/trove-guestagent-monitoring.ini
 install -p -D -m 640 %{SOURCE2} %{buildroot}%{_sysconfdir}/%{service}/guest_info
 
 # Install initscripts
@@ -347,6 +348,7 @@ exit 0
 %{_bindir}/%{service}-guestagent
 %{_unitdir}/%{name}-guestagent.service
 %config(noreplace) %attr(0640, root, %{service}) %{_sysconfdir}/%{service}/%{service}-guestagent.conf
+%config(noreplace) %attr(0660, root, %{service}) %{_sysconfdir}/%{service}/%{service}-guestagent-monitoring.ini
 %config(noreplace) %attr(0640, root, %{service}) %{_sysconfdir}/%{service}/guest_info
 
 %files -n python-%{service}
@@ -366,6 +368,22 @@ exit 0
 %endif
 
 %changelog
+* Thu Oct 26 2017 Zhao Chao <chao.zhao@eayun.com> 1:6.0.0-4.eayunstack.dev
+- github pull request #29, fixes: redmine #10072
+- github pull request #37, fixes: redmine #10087
+- github pull request #38, fixes: redmine #10877
+- github pull request #39, fixes: redmine #10086
+- github pull request #40, fixes: redmine #10917
+- github pull request #41, fixes: redmine #9627
+- github pull request #42, fixes: redmine #9618
+- github pull request #43, fixes: redmine #10798
+- github pull request #44, fixes: redmine #11038
+- github pull request #45, fixes: redmine #10202
+- github pull request #46, fixes: redmine #10272
+- github pull request #47, fixes: redmine #10284
+- github pull request #48, fixes: redmine #10887
+- github pull request #51, fixes: redmine #10278
+
 * Mon Jun 5 2017 Zhao Chao <chao.zhao@eayun.com> 1:6.0.0-3.eayunstack
 - fb49139b Wait for replication snapshot status before deleting.
 - 540fccb8 Catch exceptions from backup runner
