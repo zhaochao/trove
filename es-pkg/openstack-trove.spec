@@ -9,7 +9,7 @@
 Name:             openstack-%{service}
 Epoch:            1
 Version:          6.0.0
-Release:          4%{?dist_eayunstack}
+Release:          6%{?dist_eayunstack}
 Summary:          OpenStack DBaaS (%{service})
 
 License:          ASL 2.0
@@ -368,6 +368,12 @@ exit 0
 %endif
 
 %changelog
+* Fri Nov 3 2017 Zhao Chao <chao.zhao@eayun.com> 1:6.0.0-6.eayunstack.dev
+- github pull request #53, fixes: redmine #11173
+
+* Mon Oct 30 2017 Zhao Chao <chao.zhao@eayun.com> 1:6.0.0-5.eayunstack.dev
+- github pull request #52, fixes: redmine #11138
+
 * Thu Oct 26 2017 Zhao Chao <chao.zhao@eayun.com> 1:6.0.0-4.eayunstack.dev
 - github pull request #29, fixes: redmine #10072
 - github pull request #37, fixes: redmine #10087

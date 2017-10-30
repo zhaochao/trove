@@ -1,11 +1,11 @@
 [Unit]
 Description=OpenStack Trove guestagent Service
-After=syslog.target network.target
+After=syslog.target network.target cloud-init.service
 
 [Service]
 Type=simple
 User=trove
-ExecStart=/usr/bin/trove-guestagent --config-file /usr/share/trove/trove-dist.conf --config-file /etc/trove/trove-guestagent.conf --config-file /etc/trove/guest_info --config-file /etc/trove/trove-guestagent-monitoring.ini
+ExecStart=/usr/bin/trove-guestagent --config-file /etc/trove/trove-guestagent.conf --config-file /etc/trove/guest_info --config-file /etc/trove/trove-guestagent-monitoring.ini --log-dir=/var/log/trove --logfile=trove-guestagent.log
 Restart=on-failure
 
 [Install]
