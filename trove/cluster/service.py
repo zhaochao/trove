@@ -154,7 +154,7 @@ class ClusterController(wsgi.Controller):
                 datastore_version=datastore_version.name)
 
         nodes = body['cluster']['instances']
-        cluster_type = body.get('type', default=None)
+        cluster_type = body['cluster'].get('type', None)
         instances = []
         for node in nodes:
             flavor_id = utils.get_id_from_href(node['flavorRef'])
