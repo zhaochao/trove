@@ -262,6 +262,7 @@ class PropertiesCodec(StreamCodec):
     QUOTING_MODE = csv.QUOTE_MINIMAL
     STRICT_MODE = False
     SKIP_INIT_SPACE = True
+    SUPPORT_INLINE_COMMENTS = True
 
     def __init__(self, delimiter=' ', comment_markers=('#'),
                  unpack_singletons=True, string_mappings=None):
@@ -334,9 +335,9 @@ class PropertiesCodec(StreamCodec):
         return data_dict
 
     def _strip_comments(self, value):
-        # Strip in-line comments.
-        for marker in self._comment_markers:
-            value = value.split(marker)[0]
+        if self.SUPPORT_INLINE_COMMENTS:
+            for marker in self._comment_markers:
+                value = value.split(marker)[0]
         return value.strip()
 
     def _to_rows(self, header, items):

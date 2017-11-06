@@ -44,6 +44,11 @@ SYS_OVERRIDES_AUTH = 'auth_password'
 packager = pkg.Package()
 
 
+class RedisPropertiesCodec(PropertiesCodec):
+    """Special codec for Redis"""
+    SUPPORT_INLINE_COMMENTS = False
+
+
 class RedisAppStatus(service.BaseDbStatus):
     """
     Handles all of the status updating for the redis guest agent.
@@ -99,7 +104,7 @@ class RedisApp(object):
         self.configuration_manager = ConfigurationManager(
             system.REDIS_CONFIG,
             system.REDIS_OWNER, system.REDIS_OWNER,
-            PropertiesCodec(
+            RedisPropertiesCodec(
                 unpack_singletons=False,
                 string_mappings=config_value_mappings
             ), requires_root=True,
