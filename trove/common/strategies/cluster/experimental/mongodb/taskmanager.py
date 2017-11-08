@@ -350,6 +350,7 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
         replica_set = self.get_guest(primary_member).get_replica_set_name()
         LOG.debug('creating replica set %s as cluster %s'
                   % (replica_set, self.id))
+        return True
 
     def _get_running_query_router_id(self):
         """Get a query router in this cluster that is in the RUNNING state."""
