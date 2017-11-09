@@ -28,6 +28,7 @@ from trove.datastore import models as datastore_models
 from trove.db.models import DatabaseModelBase
 from trove.quota.quota import run_with_quotas
 from trove.taskmanager import api
+from trove.cluster.models import Cluster as DBCluster
 
 
 CONF = cfg.CONF
@@ -75,7 +76,16 @@ class Backup(object):
                 instance_model, 'backup_create')
             cls.verify_swift_auth_token(context)
             if instance_model.cluster_id is not None:
-                raise exception.ClusterInstanceOperationNotSupported()
+                """
+                For different type of cluster, some instances can backup,
+                some cannot. Currently, any instance in MongoDB replica-set
+                cluster can execute backup. Sharding cluster cannot.
+                """
+                cluster = DBCluster.load(context,
+                                         instance_model.cluster_id)
+                if not hasattr(cluster, "allow_backup") or \
+                        not cluster.allow_backup():
+                    raise exception.ClusterInstanceOperationNotSupported()
 
             ds = instance_model.datastore
             ds_version = instance_model.datastore_version
