@@ -531,12 +531,12 @@ class InstanceController(wsgi.Controller):
             raise exception.BadRequest(_("enabled must be bool."))
         measure_interval = body.get('measure_interval')
         if measure_interval and (not isinstance(measure_interval, int) or
-                                 measure_interval < 0):
+                                 measure_interval <= 0):
             raise exception.BadRequest(_(
                 "measure_interval must be int and greater than 0."))
         report_interval = body.get('report_interval')
         if report_interval and (not isinstance(report_interval, int) or
-                                report_interval < 0):
+                                report_interval <= 0):
             raise exception.BadRequest(_(
                 "report_interval must be int and greater than 0."))
         context = req.environ[wsgi.CONTEXT_KEY]

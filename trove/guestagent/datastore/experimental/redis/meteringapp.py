@@ -40,8 +40,9 @@ class RedisMeteringApp(MeteringApp):
     def countkeys(self, info):
         keys = 0
         for i in range(REDIS_DB_NUMBER):
-            if ('db' + str(i)) in info:
-                keys += int(info['db' + str(i)]['keys'])
+            dbname = 'db' + str(i)
+            if dbname in info:
+                keys += int(info[dbname]['keys'])
         return keys
 
     def get_counter(self):

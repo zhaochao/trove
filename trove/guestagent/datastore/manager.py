@@ -937,7 +937,7 @@ class Manager(periodic_task.PeriodicTasks):
         notifier.info(context, 'trove_database.meter', self.metering_data)
         self.last_report = ts
 
-    def guest_eayun_monitor_update(self, context, configuration=None):
+    def guest_eayun_monitor_update(self, context, configuration):
         """This method is to modify the configuration, and restart
         the metering_loop and the metering_notification.
         """
@@ -964,7 +964,7 @@ class Manager(periodic_task.PeriodicTasks):
             config.write(open(FILEPATH, "w"))
 
             if self.eayun_monitor_enabled is False:
-                self.metering_notification_task.stop()
+                self.metering_loop_task.stop()
                 self.metering_notification_task.stop()
             else:
                 def calc_initial_delay(last_time, old_interval):
