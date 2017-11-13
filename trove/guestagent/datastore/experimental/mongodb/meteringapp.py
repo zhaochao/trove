@@ -30,11 +30,11 @@ class MongoMeteringApp(MeteringApp):
             connections_current = serverStatus['connections']['current']
             connections_available = serverStatus['connections']['available']
             maxConns = int(connections_current) + int(connections_available)
-            if float(maxConns) != 0:
+            if maxConns != 0:
                 conns_userate = float(connections_current) / float(maxConns)
             else:
                 conns_userate = 0
-            # insert,query,update,delete,getmore,command,total
+            # insert, query, update, delete, getmore, command, total
             op_mappings = {
                 'insert': 'mongo.insert.requests',
                 'query': 'mongo.query.requests',
