@@ -96,7 +96,7 @@ class MysqlMeteringApp(MeteringApp):
                    'mysql.threads.connections': int(threads_connected),
                    'mysql.qps': int(qps),
                    'mysql.tps': tps,
-                   'mysql.slow.querys': int(slow_queries),
+                   'mysql.slow.queries': int(slow_queries),
                    'mysql.sync.delay': int(seconds_Behind_Master),
                    'mysql.scan.full.table': int(handler_read_rnd_next),
                    'mysql.buffer.pool.dirty.ratio':
@@ -104,7 +104,7 @@ class MysqlMeteringApp(MeteringApp):
                    'mysql.buffer.pool.size': int(innodb_buffer_pool_size),
                    'mysql.buffer.pool.read.hits.ratio':
                    innodb_buffer_pool_reads_hitrate * 100,
-                   'mysql.qcahce.query.hits.ratio': qcache_hits_rate * 100,
+                   'mysql.qcache.query.hits.ratio': qcache_hits_rate * 100,
                    'mysql.cached.connections.hits.ratio':
                    thread_cache_hitrate * 100,
                    'mysql.threads.running': int(threads_running),
