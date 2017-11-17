@@ -911,7 +911,10 @@ class Manager(periodic_task.PeriodicTasks):
             operation='demote_replication_master', datastore=self.manager)
 
     def metering_loop(self):
-        LOG.debug("Polling monitoring database.")
+        if not self.status.is_installed:
+            LOG.debug("DB is not prepared currently. Do not gather meters.")
+            return
+        LOG.debug("Start gathering monitor indicators.")
         resource_id = CONF.guest_id
         tenant_id = CONF.tenant_id
         timestamp = timeutils.float_utcnow()
@@ -921,13 +924,16 @@ class Manager(periodic_task.PeriodicTasks):
                               'server_type': self.metering.server_type,
                               'timestamp': timestamp,
                               'counter': counter}
-
         ts = int(time.time())
         measure_delta = ts - self.last_measure
         self.last_measure = ts
         LOG.debug(_("The measure_delta is: %s"), measure_delta)
 
     def metering_notification(self):
+        if not self.status.is_installed:
+            LOG.debug("DB is not prepared currently. Do not report.")
+            return
+        LOG.debug("Start sending monitor indicators data.")
         ts = int(time.time())
         report_delta = ts - self.last_report
         LOG.debug(_("The report_delta is: %s"), report_delta)
