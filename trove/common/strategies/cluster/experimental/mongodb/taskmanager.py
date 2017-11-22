@@ -304,10 +304,12 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
         LOG.debug('initializing replica set on %s' % primary_member.id)
         other_members_ips = []
         try:
+            password = utils.generate_random_password()
             for member in other_members:
                 other_members_ips.append(self.get_ip(member))
+                self.get_guest(member).store_admin_password(password)
                 self.get_guest(member).restart()
-            self.get_guest(primary_member).prep_primary()
+            self.get_guest(primary_member).prep_primary(password)
             self.get_guest(primary_member).add_members(other_members_ips)
         except Exception:
             LOG.exception(_("error initializing replica set"))
