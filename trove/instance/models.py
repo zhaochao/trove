@@ -840,28 +840,10 @@ class Instance(BuiltInstance):
                     raise exception.LocalStorageNotSpecified(flavor=flavor_id)
                 target_size = flavor.ephemeral  # ephemeral_Storage
 
-        if backup_id:
+        if backup_id and cluster_config is None:
             call_args['backup_id'] = backup_id
-            backup_info = Backup.get_by_id(context, backup_id)
-            if not backup_info.is_done_successfuly:
-                raise exception.BackupNotCompleteError(
-                    backup_id=backup_id, state=backup_info.state)
-
-            if backup_info.size > target_size:
-                raise exception.BackupTooLarge(
-                    backup_size=backup_info.size, disk_size=target_size)
-
-            if not backup_info.check_swift_object_exist(
-                    context,
-                    verify_checksum=CONF.verify_swift_checksum_on_restore):
-                raise exception.BackupFileNotFound(
-                    location=backup_info.location)
-
-            if (backup_info.datastore_version_id
-                    and backup_info.datastore.name != datastore.name):
-                raise exception.BackupDatastoreMismatchError(
-                    datastore1=backup_info.datastore.name,
-                    datastore2=datastore.name)
+            Backup.validate_backup_info(context, datastore, backup_id,
+                                        target_size)
 
         if slave_of_id:
             call_args['replica_of'] = slave_of_id

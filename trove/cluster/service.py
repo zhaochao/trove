@@ -28,6 +28,7 @@ from trove.common import pagination
 from trove.common import utils
 from trove.common import wsgi
 from trove.datastore import models as datastore_models
+from trove.backup.models import Backup
 
 
 CONF = cfg.CONF
@@ -155,6 +156,7 @@ class ClusterController(wsgi.Controller):
 
         nodes = body['cluster']['instances']
         cluster_type = body['cluster'].get('type', None)
+        backup_id = body['cluster'].get('backup_id', None)
         instances = []
         for node in nodes:
             flavor_id = utils.get_id_from_href(node['flavorRef'])
@@ -177,6 +179,22 @@ class ClusterController(wsgi.Controller):
                               "availability_zone": availability_zone,
                               "modules": modules})
 
+        volume_size_list = [instance['volume_size']
+                            for instance in instances
+                            if instance['volume_size'] is not None]
+        if len(volume_size_list) > 0:
+            min_volume_size = min(volume_size_list)
+        else:
+            min_volume_size = None
+        if backup_id is not None:
+            """
+            if volume_size.
+            Make sure all volume size are larger than backup size.
+            """
+            Backup.validate_for_restore(context, datastore,
+                                        backup_id,
+                                        min_volume_size)
+
         locality = body['cluster'].get('locality')
         if locality:
             locality_domain = ['affinity', 'anti-affinity']
@@ -194,7 +212,8 @@ class ClusterController(wsgi.Controller):
             cluster = models.Cluster.create(context, name, datastore,
                                             datastore_version, instances,
                                             extended_properties,
-                                            locality, cluster_type)
+                                            locality, cluster_type,
+                                            backup_id)
         cluster.locality = locality
         view = views.load_view(cluster, req=req, load_servers=False)
         return wsgi.Result(view.data(), 200)

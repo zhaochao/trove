@@ -60,7 +60,7 @@ class MongoDbTaskManagerStrategy(base.BaseTaskManagerStrategy):
 
 class MongoDbClusterTasks(task_models.ClusterTasks):
 
-    def create_cluster(self, context, cluster_id):
+    def create_cluster(self, context, cluster_id, primary_inst_id):
         LOG.debug("begin create_cluster for id: %s" % cluster_id)
 
         def _create_cluster():
@@ -110,7 +110,7 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
                 if not self._create_shard(query_routers[0], members):
                     return
             else:
-                if not self._create_replica_set(members):
+                if not self._create_replica_set(members, primary_inst_id):
                     return
 
             # call to start checking status
@@ -337,10 +337,17 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
             return False
         return True
 
-    def _create_replica_set(self, members):
+    def _create_replica_set(self, members, primary_inst_id):
         """Create a replica_set cluster by the given member instances"""
-        primary_member = members[0]
-        other_members = members[1:]
+        if primary_inst_id is not None:
+            for member in members:
+                other_members = []
+                if member.id == primary_inst_id:
+                    primary_member = member
+                other_members.append(member)
+        else:
+            primary_member = members[0]
+            other_members = members[1:]
         '''
         we dont need query_router,
         so we dont need to add replica_set to query_router as a shard
@@ -403,3 +410,10 @@ class MongoDbTaskManagerAPI(task_api.API):
                    cluster_id=cluster_id,
                    shard_id=shard_id,
                    replica_set_name=replica_set_name)
+
+    def create_cluster(self, cluster_id, primary_inst_id):
+        LOG.debug("Making async call to create cluster %s " % cluster_id)
+        self._cast("create_cluster",
+                   self.version_cap,
+                   cluster_id=cluster_id,
+                   primary_inst_id=primary_inst_id)

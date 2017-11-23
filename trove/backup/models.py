@@ -165,6 +165,30 @@ class Backup(object):
             raise exception.NotFound(uuid=backup_id)
 
     @classmethod
+    def validate_for_restore(cls, context, datastore, backup_id, target_size):
+        backup_info = cls.get_by_id(context, backup_id)
+        if not backup_info.is_done_successfuly:
+            raise exception.BackupNotCompleteError(
+                backup_id=backup_id, state=backup_info.state)
+
+        if ((target_size is not None) and
+                    backup_info.size > target_size):
+                raise exception.BackupTooLarge(
+                    backup_size=backup_info.size, disk_size=target_size)
+
+        if not backup_info.check_swift_object_exist(
+                context,
+                verify_checksum=CONF.verify_swift_checksum_on_restore):
+            raise exception.BackupFileNotFound(
+                location=backup_info.location)
+
+        if (backup_info.datastore_version_id
+                and backup_info.datastore.name != datastore.name):
+            raise exception.BackupDatastoreMismatchError(
+                datastore1=backup_info.datastore.name,
+                datastore2=datastore.name)
+
+    @classmethod
     def _paginate(cls, context, query):
         """Paginate the results of the base query.
         We use limit/offset as the results need to be ordered by date

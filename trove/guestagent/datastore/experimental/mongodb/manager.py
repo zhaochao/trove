@@ -93,7 +93,11 @@ class Manager(manager.Manager):
         if not (self.app.is_query_router or self.app.is_cluster_member):
             self.app.start_db(update_db=True)
 
-        if not cluster_config and backup_info:
+        if ((cluster_config is None or 'shard_id' not in cluster_config)
+                and backup_info):
+            """
+            Add cluster restore, but MongoDB replica-set only
+            """
             self._perform_restore(backup_info, context, mount_point, self.app)
             if service.MongoDBAdmin().is_root_enabled():
                 self.app.status.report_root(context, 'root')
