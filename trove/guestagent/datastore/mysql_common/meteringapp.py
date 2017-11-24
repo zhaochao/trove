@@ -30,7 +30,7 @@ class MysqlMeteringApp(MeteringApp):
 
         innodb_buffer_pool_size = \
             mysql_variables.get('innodb_buffer_pool_size')
-        innodb_buffer_pool_size = float(innodb_buffer_pool_size) / 1024
+        innodb_buffer_pool_size = float(innodb_buffer_pool_size) / 1024 / 1024
 
         connections = mysql_status.get('Connections')
 
