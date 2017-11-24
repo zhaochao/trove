@@ -1002,5 +1002,5 @@ class Manager(periodic_task.PeriodicTasks):
                             self.metering_notification
                         )
                     self.metering_notification_task.start(
-                        interval=measure_interval,
+                        interval=report_interval,
                         initial_delay=initial_delay)
