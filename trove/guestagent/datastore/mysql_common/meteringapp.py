@@ -69,11 +69,11 @@ class MysqlMeteringApp(MeteringApp):
         else:
             innodb_buffer_pool_reads_hitrate = 0
 
-        qcahce_hits = mysql_status.get('Qcahce_hits', 0)
+        qcache_hits = mysql_status.get('Qcache_hits', 0)
         qcache_inserts = mysql_status.get('Qcache_inserts', 0)
-        qcahce = float(qcahce_hits) + float(qcache_inserts)
-        if qcahce != 0:
-            qcache_hits_rate = float(qcahce_hits) / qcahce
+        qcache = float(qcache_hits) + float(qcache_inserts)
+        if qcache != 0:
+            qcache_hits_rate = float(qcache_hits) / qcache
         else:
             qcache_hits_rate = 0
 
@@ -104,7 +104,7 @@ class MysqlMeteringApp(MeteringApp):
                    'mysql.buffer.pool.size': int(innodb_buffer_pool_size),
                    'mysql.buffer.pool.read.hits.ratio':
                    innodb_buffer_pool_reads_hitrate * 100,
-                   'mysql.qcahce.query.hits.ratio': qcache_hits_rate * 100,
+                   'mysql.qcache.query.hits.ratio': qcache_hits_rate * 100,
                    'mysql.cached.connections.hits.ratio':
                    thread_cache_hitrate * 100,
                    'mysql.threads.running': int(threads_running),
