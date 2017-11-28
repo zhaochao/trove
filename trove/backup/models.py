@@ -28,7 +28,6 @@ from trove.datastore import models as datastore_models
 from trove.db.models import DatabaseModelBase
 from trove.quota.quota import run_with_quotas
 from trove.taskmanager import api
-from trove.cluster.models import Cluster as DBCluster
 
 
 CONF = cfg.CONF
@@ -81,6 +80,7 @@ class Backup(object):
                 some cannot. Currently, any instance in MongoDB replica-set
                 cluster can execute backup. Sharding cluster cannot.
                 """
+                from trove.cluster.models import Cluster as DBCluster
                 cluster = DBCluster.load(context,
                                          instance_model.cluster_id)
                 if not hasattr(cluster, "allow_backup") or \
