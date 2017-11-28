@@ -17,13 +17,24 @@ from trove.guestagent.datastore.service import MeteringApp
 
 class MysqlMeteringApp(MeteringApp):
     server_type = 'mysql'
+    GLOBAL_VARIABLES = ['max_connections', 'innodb_buffer_pool_size']
+    GLOBAL_STATUS = ['Connections', 'Threads_connected',
+                     'Queries', 'Com_commit', 'Com_rollback', 'Slow_queries',
+                     'Handler_read_rnd_next', 'Innodb_buffer_pool_pages_dirty',
+                     'Innodb_buffer_pool_pages_data',
+                     'Innodb_buffer_pool_reads',
+                     'Innodb_buffer_pool_read_requests', 'Qcache_hits',
+                     'Qcache_inserts', 'Threads_created', 'Threads_running',
+                     'Com_select', 'Com_replace']
 
     def __init__(self, mysql_admin):
         self.mysql_admin = mysql_admin
 
     def get_counter(self):
-        mysql_variables = self.mysql_admin().get_mysql_variables()
-        mysql_status = self.mysql_admin().get_mysql_status()
+        mysql_variables = self.mysql_admin().get_mysql_variables(
+            variable_names=self.GLOBAL_VARIABLES)
+        mysql_status = self.mysql_admin().get_mysql_status(
+            variable_names=self.GLOBAL_STATUS)
         slave_status = self.mysql_admin().get_slave_status()
 
         max_connections = mysql_variables.get('max_connections')

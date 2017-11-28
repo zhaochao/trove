@@ -550,18 +550,30 @@ class BaseMySqlAdmin(object):
         user = self._get_user(username, hostname)
         return user.databases
 
-    def get_mysql_variables(self):
+    def get_mysql_variables(self, variable_names=None):
         """Get mysql database variables."""
         with self.local_sql_client(self.mysql_app.get_engine()) as client:
-            data_list = client.execute('show global variables;')
+            if variable_names is not None and isinstance(variable_names, list):
+                expr = ','.join(['%s'] * len(variable_names))
+                data_list = client.execute("show global variables where "
+                                           "Variable_name in (%s) ;" % expr,
+                                           tuple(variable_names))
+            else:
+                data_list = client.execute('show global variables;')
             data_dict = dict(data_list.__iter__())
 
         return data_dict
 
-    def get_mysql_status(self):
+    def get_mysql_status(self, variable_names=None):
         """Get mysql database status."""
         with self.local_sql_client(self.mysql_app.get_engine()) as client:
-            data_list = client.execute('show global status;')
+            if variable_names is not None and isinstance(variable_names, list):
+                expr = ','.join(['%s'] * len(variable_names))
+                data_list = client.execute("show global status where "
+                                           "Variable_name in (%s) ;" % expr,
+                                           tuple(variable_names))
+            else:
+                data_list = client.execute('show global status;')
             data_dict = dict(data_list.__iter__())
 
         return data_dict
