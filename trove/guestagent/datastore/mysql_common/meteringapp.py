@@ -96,7 +96,7 @@ class MysqlMeteringApp(MeteringApp):
                    'mysql.threads.connections': int(threads_connected),
                    'mysql.qps': int(qps),
                    'mysql.tps': tps,
-                   'mysql.slow.querys': int(slow_queries),
+                   'mysql.slow.queries': int(slow_queries),
                    'mysql.sync.delay': int(seconds_Behind_Master),
                    'mysql.scan.full.table': int(handler_read_rnd_next),
                    'mysql.buffer.pool.dirty.ratio':
