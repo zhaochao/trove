@@ -409,9 +409,8 @@ class MongoDBApp(object):
         """
         return self.configuration_manager.get_value(name, default)
 
-    def prep_primary(self):
+    def prep_primary(self, password):
         # Prepare the primary member of a replica set.
-        password = utils.generate_random_password()
         self.create_admin_user(password)
         self.restart()
 

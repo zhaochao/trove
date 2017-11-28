@@ -248,9 +248,9 @@ class Manager(manager.Manager):
         LOG.debug("Getting the cluster key.")
         return self.app.get_key()
 
-    def prep_primary(self, context):
+    def prep_primary(self, context, password):
         LOG.debug("Preparing to be primary member.")
-        self.app.prep_primary()
+        self.app.prep_primary(password)
 
     def create_admin_user(self, context, password):
         self.app.create_admin_user(password)
