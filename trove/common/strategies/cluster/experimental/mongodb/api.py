@@ -60,7 +60,8 @@ class MongoDbCluster(models.Cluster):
 
     @classmethod
     def create(cls, context, name, datastore, datastore_version,
-               instances, extended_properties, locality, cluster_type):
+               instances, extended_properties, locality, cluster_type,
+               backup_id):
 
         # TODO(amcreynolds): consider moving into CONF and even supporting
         # TODO(amcreynolds): an array of values, e.g. [3, 5, 7]
@@ -137,6 +138,7 @@ class MongoDbCluster(models.Cluster):
         msg = _("specified parameter cluster_type only supported replica_set")
         if cluster_type and cluster_type != "replica_set":
             raise exception.BadRequest(message=msg)
+        primary_inst_id = None
         if cluster_type == "replica_set":
             member_config = {"id": db_info.id,
                              "instance_type": "member",
@@ -144,23 +146,33 @@ class MongoDbCluster(models.Cluster):
             if mongo_conf.cluster_secure:
                 cluster_key = utils.generate_random_password()
                 member_config['key'] = cluster_key
-            for i in range(0, num_instances):
-                instance_name = "%s-%s-%s" % (name,
-                                              replica_set_name,
-                                              str(i + 1))
-                modules_i = instances[i].get('modules')
-                inst_models.Instance.create(context, instance_name,
-                                            flavor_id,
-                                            datastore_version.image_id,
-                                            [], [], datastore,
-                                            datastore_version,
-                                            volume_size, None,
-                                            availability_zone=azs[i],
-                                            nics=nics[i],
-                                            configuration_id=None,
-                                            cluster_config=member_config,
-                                            locality=locality,
-                                            modules=modules_i)
+                for i in range(0, num_instances):
+                    instance_name = "%s-%s-%s" % (name,
+                                                  replica_set_name,
+                                                  str(i + 1))
+                    modules_i = instances[i].get('modules')
+                    instance = inst_models.Instance.create(
+                        context, instance_name,
+                        flavor_id,
+                        datastore_version.image_id,
+                        [], [], datastore,
+                        datastore_version,
+                        volume_size, backup_id,
+                        availability_zone=azs[i],
+                        nics=nics[i],
+                        configuration_id=None,
+                        cluster_config=member_config,
+                        locality=locality,
+                        modules=modules_i)
+                    if i == 0:
+                        """
+                        Firstly created instance as primary node,
+                        if backup exits, create with backup file,
+                        the others as secondary node.
+                        """
+                        primary_inst_id = instance.id
+                        if backup_id is not None:
+                            backup_id = None
         else:
             if mongo_conf.cluster_secure:
                 cluster_key = utils.generate_random_password()
@@ -215,7 +227,7 @@ class MongoDbCluster(models.Cluster):
                                             locality=locality)
 
         task_api.load(context, datastore_version.manager).create_cluster(
-            db_info.id)
+            db_info.id, primary_inst_id)
 
         return MongoDbCluster(context, db_info, datastore, datastore_version)
 
