@@ -73,6 +73,11 @@ class MongoDbCluster(models.Cluster):
             numi = "3 or 5 or 7"
             raise exception.ClusterNumInstancesNotSupported(num_instances=numi)
 
+        # check cluster type
+        msg = _("specified parameter cluster_type only supported replica_set")
+        if cluster_type and cluster_type != "replica_set":
+            raise exception.BadRequest(message=msg)
+
         flavor_ids = [instance['flavor_id'] for instance in instances]
         if len(set(flavor_ids)) != 1:
             raise exception.ClusterFlavorsNotEqual()
@@ -135,9 +140,6 @@ class MongoDbCluster(models.Cluster):
         '''
         create replica set mongo cluster
         '''
-        msg = _("specified parameter cluster_type only supported replica_set")
-        if cluster_type and cluster_type != "replica_set":
-            raise exception.BadRequest(message=msg)
         primary_inst_id = None
         if cluster_type == "replica_set":
             member_config = {"id": db_info.id,
