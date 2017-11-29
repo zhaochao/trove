@@ -46,7 +46,8 @@ class MongoDbTaskManagerStrategy(base.BaseTaskManagerStrategy):
 
     @property
     def task_manager_manager_actions(self):
-        return {'add_shard_cluster': self._manager_add_shard}
+        return {'add_shard_cluster': self._manager_add_shard,
+                'create_cluster': self._manager_create_cluster}
 
     def _manager_add_shard(self, context, cluster_id, shard_id,
                            replica_set_name):
@@ -56,6 +57,15 @@ class MongoDbTaskManagerStrategy(base.BaseTaskManagerStrategy):
             MongoDbClusterTasks)
         cluster_tasks.add_shard_cluster(context, cluster_id, shard_id,
                                         replica_set_name)
+
+    def _manager_create_cluster(self, context, cluster_id,
+                                primary_inst_id):
+        cluster_tasks = task_models.ClusterTasks.load(
+            context,
+            cluster_id,
+            MongoDbClusterTasks)
+        cluster_tasks.create_cluster(context, cluster_id,
+                                     primary_inst_id)
 
 
 class MongoDbClusterTasks(task_models.ClusterTasks):
@@ -342,18 +352,18 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
     def _create_replica_set(self, members, primary_inst_id):
         """Create a replica_set cluster by the given member instances"""
         if primary_inst_id is not None:
+            other_members = []
             for member in members:
-                other_members = []
                 if member.id == primary_inst_id:
                     primary_member = member
-                other_members.append(member)
+                else:
+                    other_members.append(member)
         else:
             primary_member = members[0]
             other_members = members[1:]
-        '''
-        we dont need query_router,
-        so we dont need to add replica_set to query_router as a shard
-        '''
+
+        # we dont need query_router,
+        # so we dont need to add replica_set to query_router as a shard
         if not self._init_replica_set(primary_member, other_members):
             return False
         replica_set = self.get_guest(primary_member).get_replica_set_name()
@@ -416,7 +426,7 @@ class MongoDbTaskManagerAPI(task_api.API):
 
     def create_cluster(self, cluster_id, primary_inst_id):
         LOG.debug("Making async call to create cluster %s " % cluster_id)
-        self._cast("create_cluster",
+        self._cast("mongodb_create_cluster",
                    self.version_cap,
                    cluster_id=cluster_id,
                    primary_inst_id=primary_inst_id)

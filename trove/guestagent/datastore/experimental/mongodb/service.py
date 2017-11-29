@@ -472,13 +472,16 @@ class MongoDBAdmin(object):
 
     def _admin_user(self):
         if not type(self).admin_user:
-            creds = MongoDBCredentials()
-            creds.read(system.MONGO_ADMIN_CREDS_FILE)
-            user = models.MongoDBUser(
-                'admin.%s' % creds.username,
-                creds.password
-            )
-            type(self).admin_user = user
+            try:
+                creds = MongoDBCredentials()
+                creds.read(system.MONGO_ADMIN_CREDS_FILE)
+                user = models.MongoDBUser(
+                    'admin.%s' % creds.username,
+                    creds.password
+                )
+                type(self).admin_user = user
+            except exception.UnprocessableEntity:
+                pass
         return type(self).admin_user
 
     def _is_modifiable_user(self, name):
@@ -492,10 +495,13 @@ class MongoDBAdmin(object):
         """Returns a list of strings that constitute MongoDB command line
         authentication parameters.
         """
+        auth_params = []
         user = self._admin_user()
-        return ['--username', user.username,
-                '--password', user.password,
-                '--authenticationDatabase', user.database.name]
+        if user is not None:
+            auth_params= ['--username', user.username,
+                          '--password', user.password,
+                          '--authenticationDatabase', user.database.name]
+        return auth_params
 
     def _create_user_with_client(self, user, client):
         """Run the add user command."""
