@@ -125,7 +125,7 @@ class MongoDBApp(object):
         self._initialize_writable_run_dir()
 
         self.configuration_manager.apply_system_override(
-            {'processManagement.fork': False,
+            {'processManagement.fork': True,
              'processManagement.pidFilePath': system.MONGO_PID_FILE,
              'systemLog.destination': 'file',
              'systemLog.path': system.MONGO_LOG_FILE,
